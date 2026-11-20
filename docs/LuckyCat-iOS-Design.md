@@ -35,6 +35,8 @@ ProjectClash 将 Apple SDK、Swift 适配层与客户端拆为独立仓库。原
 
 **许可是分发决策。** ProjectClash 核心及适配层的许可证按锁定版本审查。清单应覆盖内核、绑定代码、Swift 适配、依赖及规则数据，记录修改、组合链接范围、通知、对应源码与构建材料，以及 App Store 分发条款与相应 GPL 条款能否同时满足。若希望闭源，发布构建须采用满足该模式的组件或取得相应授权。在核查完成前用内部真机原型评估，暂缓向外部测试者分发相关构建。 [ProjectClash 核心许可证](https://github.com/ProjectClash/Clash/blob/main/LICENSE) · [适配层许可证](https://github.com/ProjectClash/Clash-Adapter/blob/main/LICENSE) · [GPL-3.0 条文](https://www.gnu.org/licenses/gpl-3.0.html) · [Apple 开发者协议与条款](https://developer.apple.com/support/terms/)
 
+[ProjectClash 内部原型](LuckyCat-Clash-Prototype.md) 记录了候选版本、复现步骤、验证范围和发布阻碍。
+
 ## 3. 架构与模块职责
 
 ```mermaid
