@@ -4,15 +4,31 @@ import Observation
 
 @Observable
 final class PrototypeVPN {
+    struct Traffic: Equatable {
+        let received: UInt64
+        let sent: UInt64
+        let updatedAt: Date
+    }
+
+    enum Issue: Equatable {
+        case permission
+        case configuration
+        case remote
+        case storage
+    }
+
     private(set) var status: NEVPNStatus = .invalid
     private(set) var busy = false
     private(set) var requestingConnection = false
     private(set) var imported: [ImportedNode] = []
     private(set) var library = ProfileLibrary()
-    private(set) var diagnostics: [String] = []
+    let diagnostics = DiagnosticLog()
     private var libraryLoaded = false
     private(set) var importError: String?
     private(set) var savedEndpoint: String?
+    private(set) var traffic: Traffic?
+    private(set) var extensionReady: Bool?
+    private(set) var issue: Issue?
     var message: String?
 
     private var manager: NETunnelProviderManager?
@@ -20,6 +36,8 @@ final class PrototypeVPN {
     private var statusChangedAt = UUID()
     private var stopRequest: UUID?
     private var diagnosticRequest: UUID?
+    private var diagnosticUnavailableRecorded = false
+    @ObservationIgnored private var trafficTask: Task<Void, Never>?
 
     var isActive: Bool {
         requestingConnection || stopRequest != nil || [.connecting, .connected, .reasserting, .disconnecting].contains(status)
@@ -69,7 +87,12 @@ final class PrototypeVPN {
             for node in imported {
                 let revision = UUID()
                 try TunnelSnapshot.save(node.configuration, profileID: profileID, revision: revision)
-                nodes.append(Profile.Node(id: revision, name: node.name, endpoint: node.configuration.endpoint))
+                nodes.append(Profile.Node(
+                    id: revision, name: node.name, endpoint: node.configuration.endpoint,
+                    clientIPv4: node.configuration.clientIPv4,
+                    clientIPv6: node.configuration.clientIPv6,
+                    dnsServers: node.configuration.dnsServers
+                ))
             }
             guard let selected = nodes.first(where: { $0.name == selectedNode }) else {
                 throw PrototypeError.missingConfiguration
@@ -91,19 +114,34 @@ final class PrototypeVPN {
         }
     }
 
+    func select(profileID: UUID) {
+        guard libraryLoaded, !busy, !isActive,
+              let index = library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        applySelection(index: index, nodeID: nil)
+    }
+
     func select(profileID: UUID, nodeID: UUID) {
         guard libraryLoaded, !busy, !isActive,
               let index = library.profiles.firstIndex(where: { $0.id == profileID }),
               library.profiles[index].nodes.contains(where: { $0.id == nodeID }) else { return }
+        applySelection(index: index, nodeID: nodeID)
+    }
+
+    private func applySelection(index: Int, nodeID: UUID?) {
         var updated = library
-        updated.selectedProfileID = profileID
-        updated.profiles[index].selectedNodeID = nodeID
+        let alreadySelected = updated.selectedProfileID == updated.profiles[index].id
+            && (nodeID == nil || updated.profiles[index].selectedNodeID == nodeID)
+        guard !alreadySelected else { return }
+        updated.selectedProfileID = updated.profiles[index].id
+        if let nodeID { updated.profiles[index].selectedNodeID = nodeID }
         do {
             try updated.save()
             library = updated
             message = nil
+            issue = nil
+            record("切换配置")
         } catch {
-            message = Self.describe(error)
+            present(error)
         }
     }
 
@@ -131,9 +169,10 @@ final class PrototypeVPN {
             library = updated
             for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
             message = nil
+            issue = nil
             record("配置已删除")
         } catch {
-            message = Self.describe(error)
+            present(error)
         }
     }
 
@@ -154,7 +193,7 @@ final class PrototypeVPN {
             adopt(try await loadManager())
             if status == .connected { queryExtensionStatus() }
         } catch {
-            message = Self.describe(error)
+            present(error)
         }
         #endif
     }
@@ -168,6 +207,10 @@ final class PrototypeVPN {
         busy = true
         defer { busy = false }
         message = nil
+        issue = nil
+        traffic = nil
+        extensionReady = nil
+        diagnosticUnavailableRecorded = false
 
         do {
             let existing = try await loadManager()
@@ -215,11 +258,12 @@ final class PrototypeVPN {
                     await self.updateStatus()
                     if self.status == .disconnected {
                         self.message = "iOS 未启动连接，请检查系统 VPN 设置。"
+                        self.issue = .permission
                     }
                 }
             }
         } catch {
-            message = Self.describe(error)
+            present(error)
         }
         #endif
     }
@@ -229,6 +273,7 @@ final class PrototypeVPN {
         guard let connection = manager?.connection else { return }
         clearConnectionRequest()
         message = nil
+        issue = nil
         let request = UUID()
         stopRequest = request
         connection.stopVPNTunnel()
@@ -255,8 +300,14 @@ final class PrototypeVPN {
         if current != previous {
             record("系统 VPN 状态 \(current.rawValue)")
             diagnosticRequest = nil
-            if current == .connected { queryExtensionStatus() }
+            if current == .connected {
+                message = nil
+                issue = nil
+                diagnosticUnavailableRecorded = false
+                queryExtensionStatus()
+            }
         }
+        syncTrafficPolling()
         let update = statusChangedAt
         if current == .connecting || current == .connected || current == .reasserting {
             clearConnectionRequest()
@@ -270,12 +321,12 @@ final class PrototypeVPN {
             error = disconnectError as NSError
         }
         guard statusChangedAt == update, manager?.connection === connection, let error else { return }
-        message = Self.describe(error)
+        present(error)
         record("断开错误码 \(error.code)")
     }
 
     private func queryExtensionStatus() {
-        guard diagnosticRequest == nil, let session = manager?.connection as? NETunnelProviderSession else { return }
+        guard let session = manager?.connection as? NETunnelProviderSession else { return }
         let id = UUID()
         diagnosticRequest = id
         do {
@@ -283,28 +334,58 @@ final class PrototypeVPN {
             let data = try JSONEncoder().encode(request)
             try session.sendProviderMessage(data) { [weak self] response in
                 Task { @MainActor [weak self] in
-                    let reply = response.flatMap { try? JSONDecoder().decode(TunnelStatusMessage.Reply.self, from: $0) }
-                    let ready = reply.flatMap { $0.id == id && $0.version == TunnelStatusMessage.version ? $0.ready : nil }
-                    self?.completeDiagnostic(id, ready: ready)
+                    self?.finishStatusQuery(id: id, response: response)
                 }
             }
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(2))
-                self?.completeDiagnostic(id, ready: nil)
+                self?.finishStatusQuery(id: id, response: nil)
             }
         } catch {
-            completeDiagnostic(id, ready: nil)
+            finishStatusQuery(id: id, response: nil)
         }
     }
 
-    private func completeDiagnostic(_ id: UUID, ready: Bool?) {
+    private func finishStatusQuery(id: UUID, response: Data?) {
         guard diagnosticRequest == id else { return }
         diagnosticRequest = nil
         guard status == .connected else { return }
-        switch ready {
-        case true?: record("扩展已就绪")
-        case false?: record("扩展未就绪")
-        case nil: record("扩展诊断暂不可用")
+        guard let response,
+              let reply = try? JSONDecoder().decode(TunnelStatusMessage.Reply.self, from: response),
+              reply.version == TunnelStatusMessage.version, reply.id == id else {
+            let wasAvailable = extensionReady != nil
+            extensionReady = nil
+            if wasAvailable || !diagnosticUnavailableRecorded {
+                record("扩展诊断暂不可用")
+                diagnosticUnavailableRecorded = true
+            }
+            return
+        }
+        let previous = extensionReady
+        extensionReady = reply.ready
+        if let bytesIn = reply.bytesIn, let bytesOut = reply.bytesOut {
+            traffic = Traffic(received: bytesIn, sent: bytesOut, updatedAt: .now)
+        }
+        if previous != reply.ready {
+            record(reply.ready ? "扩展已就绪" : "扩展未就绪")
+        }
+    }
+
+    private func syncTrafficPolling() {
+        guard status == .connected else {
+            trafficTask?.cancel()
+            trafficTask = nil
+            traffic = nil
+            extensionReady = nil
+            return
+        }
+        guard trafficTask == nil else { return }
+        trafficTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled, let self else { break }
+                self.queryExtensionStatus()
+            }
         }
     }
 
@@ -347,8 +428,44 @@ final class PrototypeVPN {
     }
 
     private func record(_ event: String) {
-        diagnostics.append("\(Date.now.formatted(.iso8601))  \(event)")
-        if diagnostics.count > 32 { diagnostics.removeFirst() }
+        diagnostics.append(event)
+    }
+
+    private func present(_ error: Error) {
+        message = Self.describe(error)
+        issue = Self.issue(for: error)
+    }
+
+    static func issue(for error: Error) -> Issue? {
+        let nsError = error as NSError
+        if nsError.domain == PrototypeError.errorDomain,
+           let prototype = PrototypeError(rawValue: nsError.code) {
+            switch prototype {
+            case .keychainUnavailable, .sharedContainerUnavailable:
+                return .permission
+            case .missingConfiguration, .engineStartup, .networkSettings,
+                 .duplicateConfiguration, .activeConfiguration:
+                return .configuration
+            case .handshakeTimeout:
+                return .remote
+            case .profileStorage:
+                return .storage
+            case .startCancelled, .simulator:
+                return nil
+            }
+        }
+        if nsError.domain == NSCocoaErrorDomain { return .storage }
+        if nsError.domain == NEVPNErrorDomain,
+           let code = NEVPNError.Code(rawValue: nsError.code) {
+            switch code {
+            case .configurationReadWriteFailed: return .permission
+            case .configurationInvalid, .configurationDisabled, .configurationStale, .configurationUnknown:
+                return .configuration
+            case .connectionFailed: return .remote
+            default: return nil
+            }
+        }
+        return .remote
     }
 
     private func adopt(_ manager: NETunnelProviderManager?) {
@@ -357,6 +474,7 @@ final class PrototypeVPN {
         savedEndpoint = manager.flatMap {
             Self.legacyRevision(of: $0) == nil ? nil : $0.protocolConfiguration?.serverAddress
         }
+        syncTrafficPolling()
     }
 
     private func clearConnectionRequest() {

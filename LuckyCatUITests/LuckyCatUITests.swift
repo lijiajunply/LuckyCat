@@ -50,7 +50,7 @@ final class LuckyCatUITests: XCTestCase {
         app.terminate()
         app.launch()
 
-        XCTAssertTrue(app.buttons["connect-vpn"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.switches["connect-vpn"].waitForExistence(timeout: 5))
         app.tabBars.buttons["配置"].tap()
         XCTAssertTrue(app.staticTexts[name].exists)
         app.buttons["delete-profile-\(name)"].tap()

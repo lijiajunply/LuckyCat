@@ -12,6 +12,7 @@ import "C"
 import (
 	"os"
 	"runtime/cgo"
+	"strconv"
 	"strings"
 	"unsafe"
 
@@ -132,6 +133,33 @@ func LCWireGuardHasHandshake(handle C.uintptr_t) C.int {
 		}
 	}
 	return 0
+}
+
+// LCWireGuardTraffic reports aggregated peer counters: bytes received from and sent to the peer.
+//
+//export LCWireGuardTraffic
+func LCWireGuardTraffic(handle C.uintptr_t, received *C.uint64_t, sent *C.uint64_t) C.int {
+	engine := cgo.Handle(handle).Value().(tunnel).device
+	status, err := engine.IpcGet()
+	if err != nil {
+		return 0
+	}
+	var rxBytes, txBytes uint64
+	for _, line := range strings.Split(status, "\n") {
+		if value, ok := strings.CutPrefix(line, "rx_bytes="); ok {
+			if parsed, err := strconv.ParseUint(value, 10, 64); err == nil {
+				rxBytes += parsed
+			}
+		}
+		if value, ok := strings.CutPrefix(line, "tx_bytes="); ok {
+			if parsed, err := strconv.ParseUint(value, 10, 64); err == nil {
+				txBytes += parsed
+			}
+		}
+	}
+	*received = C.uint64_t(rxBytes)
+	*sent = C.uint64_t(txBytes)
+	return 1
 }
 
 func main() {}

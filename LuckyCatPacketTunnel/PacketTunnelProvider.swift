@@ -43,10 +43,16 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
             return
         }
         lifecycle.async {
+            var received: UInt64 = 0
+            var sent: UInt64 = 0
+            let hasTraffic = self.engine != 0
+                && LCWireGuardTraffic(self.engine, &received, &sent) != 0
             let reply = TunnelStatusMessage.Reply(
                 version: TunnelStatusMessage.version,
                 id: request.id,
-                ready: self.engine != 0 && self.startupCompletion == nil
+                ready: self.engine != 0 && self.startupCompletion == nil,
+                bytesIn: hasTraffic ? received : nil,
+                bytesOut: hasTraffic ? sent : nil
             )
             completionHandler?(try? JSONEncoder().encode(reply))
         }

@@ -5,6 +5,27 @@ struct Profile: Codable, Identifiable {
         let id: UUID // Immutable snapshot revision.
         let name: String
         let endpoint: String
+        var clientIPv4: String? = nil
+        var clientIPv6: String? = nil
+        var dnsServers: [String]? = nil
+
+        var compatibilityNotes: [String] {
+            guard let clientIPv4, let clientIPv6 else {
+                return [
+                    "此节点由早期版本导入，未保存双栈地址信息。",
+                    "可使用当前选中的节点连接；重新导入可获得完整兼容提示。"
+                ]
+            }
+            var notes = [
+                "双栈默认路由：\(clientIPv4) / \(clientIPv6)。",
+                "远端地址和 iOS 系统例外走普通网络。",
+                "断开后 iOS 可能恢复普通网络访问。"
+            ]
+            if let dnsServers, !dnsServers.isEmpty {
+                notes.append("隧道内 DNS：\(dnsServers.joined(separator: ", "))。DNS 须可从隧道内访问。")
+            }
+            return notes
+        }
     }
 
     let id: UUID

@@ -9,5 +9,6 @@ uintptr_t LCWireGuardStart(char *configuration, int mtu, uintptr_t context, LCWi
 void LCWireGuardStop(uintptr_t handle);
 int LCWireGuardEnqueue(uintptr_t handle, uint8_t *packet, int length);
 int LCWireGuardHasHandshake(uintptr_t handle);
+int LCWireGuardTraffic(uintptr_t handle, uint64_t *received, uint64_t *sent);
 
 #endif

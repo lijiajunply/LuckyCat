@@ -1,11 +1,13 @@
 import NetworkExtension
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
     private enum Page: Hashable { case connection, profiles, settings }
 
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
     @AppStorage("tunnelDisclosureVersion") private var disclosureVersion = 0
     @State private var vpn = PrototypeVPN()
     @State private var page = Page.connection
@@ -44,25 +46,47 @@ struct ContentView: View {
                     } else if let endpoint = vpn.savedEndpoint {
                         LabeledContent("测试远端", value: endpoint)
                     }
+                    if vpn.isActive {
+                        LabeledContent("扩展", value: extensionLabel)
+                    }
                     feedback
                 }
 
                 Section {
-                    if vpn.isActive {
-                        Button("断开", systemImage: "stop.circle") { vpn.disconnect() }
-                            .disabled(vpn.busy || !vpn.canStop)
-                    } else if vpn.library.selectedProfile != nil || vpn.savedEndpoint != nil {
-                        Button("连接", systemImage: "bolt.shield") {
-                            if disclosureVersion == 1 {
-                                Task { await vpn.connect() }
-                            } else {
-                                showingDisclosure = true
-                            }
-                        }
-                        .disabled(vpn.busy)
-                        .accessibilityIdentifier("connect-vpn")
-                    } else {
+                    if vpn.library.selectedProfile == nil && vpn.savedEndpoint == nil {
                         Button("导入配置", systemImage: "document.badge.plus") { page = .profiles }
+                    } else {
+                        Toggle(isOn: connectionBinding) {
+                            Label("连接", systemImage: "bolt.shield")
+                        }
+                        .disabled(connectToggleDisabled)
+                        .accessibilityIdentifier("connect-vpn")
+                    }
+                } footer: {
+                    if vpn.library.selectedProfile == nil && vpn.savedEndpoint == nil {
+                        Text("导入配置后才能连接。")
+                    } else if vpn.isActive {
+                        Text("断开后，iOS 可能恢复普通网络访问。")
+                    } else {
+                        Text("首次连接前会说明数据使用方式。")
+                    }
+                }
+
+                if let issue = vpn.issue, issue != .storage {
+                    Section("恢复") {
+                        recovery(issue)
+                    }
+                }
+
+                if vpn.isActive, let traffic = vpn.traffic {
+                    Section {
+                        LabeledContent("接收", value: Self.bytes(traffic.received))
+                        LabeledContent("发送", value: Self.bytes(traffic.sent))
+                        LabeledContent("更新", value: traffic.updatedAt.formatted(date: .omitted, time: .standard))
+                    } header: {
+                        Text("流量")
+                    } footer: {
+                        Text("由扩展按聚合值每 5 秒上报，仅显示在本机。")
                     }
                 }
             }
@@ -77,6 +101,58 @@ struct ContentView: View {
                 Text(Self.disclosure)
             }
         }
+    }
+
+    private var connectionBinding: Binding<Bool> {
+        Binding(
+            get: { vpn.isActive },
+            set: { on in
+                if on {
+                    if disclosureVersion == 1 {
+                        Task { await vpn.connect() }
+                    } else {
+                        showingDisclosure = true
+                    }
+                } else {
+                    vpn.disconnect()
+                }
+            }
+        )
+    }
+
+    private var connectToggleDisabled: Bool {
+        if vpn.library.selectedProfile == nil && vpn.savedEndpoint == nil { return true }
+        return vpn.busy || (vpn.isActive && !vpn.canStop)
+    }
+
+    @ViewBuilder private func recovery(_ issue: PrototypeVPN.Issue) -> some View {
+        switch issue {
+        case .permission:
+            Button("打开系统设置", systemImage: "gearshape") {
+                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+            }
+        case .configuration:
+            Button("前往配置", systemImage: "folder") { page = .profiles }
+        case .remote:
+            Button("重试连接", systemImage: "arrow.clockwise") {
+                Task { await vpn.connect() }
+            }
+            .disabled(vpn.busy || vpn.isActive)
+        case .storage:
+            EmptyView()
+        }
+    }
+
+    private var extensionLabel: String {
+        switch vpn.extensionReady {
+        case true?: "已就绪"
+        case false?: "未就绪"
+        case nil: "暂不可用"
+        }
+    }
+
+    private static func bytes(_ count: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .binary)
     }
 
     private var profiles: some View {
@@ -106,6 +182,13 @@ struct ContentView: View {
                                 }
                             }
                             .disabled(vpn.busy || vpn.isActive)
+                        }
+                        if vpn.library.selectedProfileID != profile.id {
+                            Button("设为当前") { vpn.select(profileID: profile.id) }
+                                .disabled(vpn.busy || vpn.isActive)
+                        }
+                        NavigationLink("兼容提示") {
+                            ProfileCompatibility(profile: profile)
                         }
                         Button("删除配置", role: .destructive) { pendingDeletion = profile }
                             .accessibilityIdentifier("delete-profile-\(profile.name)")
@@ -167,23 +250,7 @@ struct ContentView: View {
                     }
                     .navigationTitle("配置兼容性")
                 }
-                NavigationLink("本地诊断") {
-                    List {
-                        if vpn.diagnostics.isEmpty {
-                            Text("本次运行暂无诊断记录。")
-                        } else {
-                            Section {
-                                Text(vpn.diagnostics.joined(separator: "\n"))
-                                    .font(.footnote.monospaced())
-                                    .textSelection(.enabled)
-                            }
-                            ShareLink(item: vpn.diagnostics.joined(separator: "\n")) {
-                                Label("导出诊断", systemImage: "square.and.arrow.up")
-                            }
-                        }
-                    }
-                    .navigationTitle("本地诊断")
-                }
+                NavigationLink("本地诊断") { DiagnosticsView(log: vpn.diagnostics) }
             }
             .navigationTitle("设置")
         }
@@ -260,6 +327,17 @@ private struct ImportPreview: View {
                     }
                     .pickerStyle(.inline)
                 }
+                if let node = vpn.imported.first(where: { $0.id == selectedNode }) {
+                    Section("节点兼容性") {
+                        LabeledContent("IPv4", value: node.configuration.clientIPv4)
+                        LabeledContent("IPv6", value: node.configuration.clientIPv6)
+                        LabeledContent("DNS", value: node.configuration.dnsServers.joined(separator: ", "))
+                        Text("使用双栈默认路由；节点凭据保存在本机共享钥匙串。")
+                            .foregroundStyle(.secondary)
+                        Text("不支持规则、策略组、Fake-IP、域名端点、本地监听和 YAML 别名。")
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 if let error = vpn.importError { Text(error).foregroundStyle(.orange) }
             }
             .navigationTitle("导入预览")
@@ -275,6 +353,65 @@ private struct ImportPreview: View {
                 }
             }
         }
+    }
+}
+
+private struct DiagnosticsView: View {
+    let log: DiagnosticLog
+    @State private var showingClear = false
+
+    var body: some View {
+        List {
+            if log.records.isEmpty {
+                Text("暂无诊断记录。").foregroundStyle(.secondary)
+            } else {
+                Section {
+                    ForEach(log.records.reversed()) { record in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(record.event)
+                            Text(record.timestamp.formatted(date: .abbreviated, time: .standard))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                } header: {
+                    Text("最近 \(log.records.count) 条")
+                }
+                Section {
+                    ShareLink(item: log.exportText) {
+                        Label("导出诊断", systemImage: "square.and.arrow.up")
+                    }
+                    Button("清除记录", role: .destructive) { showingClear = true }
+                } footer: {
+                    Text("记录保留 7 天，最多 200 条。仅含事件、错误码与时间，不含密钥、订阅链接、访问目标或包内容。")
+                }
+            }
+        }
+        .navigationTitle("本地诊断")
+        .alert("清除诊断记录？", isPresented: $showingClear) {
+            Button("取消", role: .cancel) {}
+            Button("清除", role: .destructive) { log.clear() }
+        } message: {
+            Text("将删除本机保存的全部诊断记录。")
+        }
+    }
+}
+
+private struct ProfileCompatibility: View {
+    let profile: Profile
+
+    var body: some View {
+        List {
+            ForEach(profile.nodes) { node in
+                Section(node.name) {
+                    LabeledContent("远端", value: node.endpoint)
+                    ForEach(node.compatibilityNotes, id: \.self) { note in
+                        Text(note)
+                    }
+                }
+            }
+        }
+        .navigationTitle("兼容提示")
     }
 }
 

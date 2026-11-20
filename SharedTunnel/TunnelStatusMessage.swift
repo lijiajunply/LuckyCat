@@ -12,5 +12,8 @@ enum TunnelStatusMessage {
         let version: Int
         let id: UUID
         let ready: Bool
+        /// Aggregated wireguard-go counters. Older extensions omit them.
+        let bytesIn: UInt64?
+        let bytesOut: UInt64?
     }
 }

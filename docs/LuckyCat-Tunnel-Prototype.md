@@ -80,3 +80,24 @@ proxies:
 ```
 
 真机构建需要在主 App 和扩展的签名描述文件中加入 `group.com.luckyfish.LuckyCat`。App Group 保存带版本的快照，已有共享钥匙串组保存凭据。系统 VPN 配置通过配置 ID 和快照修订号读取对应版本。
+
+## 第四阶段连接页与诊断
+
+连接页用开关控制连接和断开；连接中、断开中禁用开关，避免重复请求。操作失败时按原因给出恢复入口：权限问题打开系统设置，配置问题跳到配置页，远端握手失败可重试。
+
+扩展在 `handleAppMessage` 中返回就绪状态和 wireguard-go 的聚合 `rx_bytes`、`tx_bytes`。主 App 连接期间每 5 秒查询一次，显示接收、发送和更新时间；消息超时或版本不符时显示「暂不可用」，不改变系统 VPN 状态。分片计数不在每包路径上跨进程调用。
+
+本地诊断写入 App 支持目录，最多 200 条、保留 7 天，仅记录事件、错误码和时间。设置页可预览、导出或清除记录；写入前清理控制字符并截断过长事件，不记录密钥、订阅链接、访问目标和包内容。
+
+配置页新增「设为当前」和每个节点的「兼容提示」。导入预览显示节点的双栈地址、DNS 和首版限制。节点兼容提示由导入时保存的非敏感元数据生成；旧配置缺少元数据时提示重新导入。
+
+验证命令：
+
+```sh
+xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -only-testing:LuckyCatTests
+(cd WireGuardBridge && go test -race ./...)
+```
+
+模拟器 UI 测试不要加 `CODE_SIGNING_ALLOWED=NO`，否则测试宿主无法写入钥匙串，保存配置会失败。2026 年 11 月 20 日复跑：13 项单元测试通过，配置导入 UI 测试通过，Go race 测试通过，真机和模拟器编译通过。扩展流量上报、断线重连和真机长稳仍需在受控远端复测。
