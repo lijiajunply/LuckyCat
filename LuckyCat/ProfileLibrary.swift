@@ -1,15 +1,40 @@
 import Foundation
 
 struct Profile: Codable, Identifiable {
+    enum Engine: String, Codable {
+        case wireGuard = "wireguard"
+        case clash
+    }
+
+    struct Subscription: Codable, Equatable {
+        nonisolated init() {}
+
+        var upload: UInt64?
+        var download: UInt64?
+        var total: UInt64?
+        var expire: Date?
+        var updateIntervalHours: Int?
+        var webPageURL: String?
+        var lastUpdated: Date?
+    }
+
     struct Node: Codable, Identifiable {
         let id: UUID // Immutable snapshot revision.
         let name: String
         let endpoint: String
+        var type: String? = nil
         var clientIPv4: String? = nil
         var clientIPv6: String? = nil
         var dnsServers: [String]? = nil
 
         var compatibilityNotes: [String] {
+            if let type, clientIPv4 == nil {
+                return [
+                    "协议：\(type)。",
+                    "由 Clash 内核按配置中的策略组和规则分流。",
+                    "断开后 iOS 可能恢复普通网络访问。"
+                ]
+            }
             guard let clientIPv4, let clientIPv6 else {
                 return [
                     "此节点由早期版本导入，未保存双栈地址信息。",
@@ -34,8 +59,16 @@ struct Profile: Codable, Identifiable {
     var selectedNodeID: UUID
     var sourceURL: URL? = nil
     var rules: [RoutingRule]? = nil
+    var engine: Engine? = nil
+    var clashRevision: UUID? = nil
+    var clashGroup: String? = nil
+    var clashGroups: [ClashImportGroup]? = nil
+    var subscription: Subscription? = nil
+    var autoUpdate: Bool? = nil
 
     var selectedNode: Node? { nodes.first { $0.id == selectedNodeID } }
+    var resolvedEngine: Engine { engine ?? .wireGuard }
+    var autoUpdateEnabled: Bool { autoUpdate ?? true }
 }
 
 struct ProfileLibrary: Codable {

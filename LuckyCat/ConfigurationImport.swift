@@ -2,15 +2,30 @@ import Foundation
 
 struct ImportedNode: Identifiable {
     let name: String
-    let configuration: PrototypeConfiguration
+    let type: String
+    let endpoint: String
+    let configuration: PrototypeConfiguration?
 
     var id: String { name }
+
+    nonisolated init(
+        name: String, type: String = "wireguard", endpoint: String,
+        configuration: PrototypeConfiguration? = nil
+    ) {
+        self.name = name
+        self.type = type
+        self.endpoint = endpoint
+        self.configuration = configuration
+    }
 }
 
 struct ImportedConfiguration {
+    var engine: Profile.Engine = .wireGuard
     let nodes: [ImportedNode]
     let rules: [RoutingRule]
     let warnings: [String]
+    var clashYAML: String? = nil
+    var groups: [ClashImportGroup] = []
 }
 
 enum ConfigurationImport {
@@ -55,7 +70,10 @@ enum ConfigurationImport {
         if source.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") {
             let configuration = try PrototypeConfiguration.decode(data)
             return ImportedConfiguration(
-                nodes: [ImportedNode(name: "WireGuard", configuration: configuration)],
+                nodes: [ImportedNode(
+                    name: "WireGuard", endpoint: configuration.endpoint,
+                    configuration: configuration
+                )],
                 rules: [],
                 warnings: []
             )
@@ -286,7 +304,9 @@ enum ConfigurationImport {
             ]
             throw Invalid(location: position + " · " + (yamlFields[error.name] ?? error.name))
         }
-        nodes.append(ImportedNode(name: name, configuration: configuration))
+        nodes.append(ImportedNode(
+            name: name, endpoint: configuration.endpoint, configuration: configuration
+        ))
     }
 
     private static func scalar(_ raw: String) -> String? {

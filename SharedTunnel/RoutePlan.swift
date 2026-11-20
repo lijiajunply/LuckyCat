@@ -43,7 +43,7 @@ struct IPPrefix: Codable, Hashable, Sendable {
         self.init(value: PrefixValue(family: family, bytes: normalized, length: length))
     }
 
-    fileprivate init(value: PrefixValue) {
+    nonisolated fileprivate init(value: PrefixValue) {
         address = PrefixValue.format(value) ?? "0.0.0.0"
         prefixLength = value.length
     }
@@ -238,7 +238,7 @@ private struct PrefixValue: Hashable {
         }
     }
 
-    static func mask(_ bytes: inout [UInt8], length: Int) {
+    nonisolated static func mask(_ bytes: inout [UInt8], length: Int) {
         for index in bytes.indices {
             let bits = min(max(length - index * 8, 0), 8)
             if bits == 0 {
@@ -249,13 +249,13 @@ private struct PrefixValue: Hashable {
         }
     }
 
-    static func family(of text: String) -> PrefixFamily? {
+    nonisolated static func family(of text: String) -> PrefixFamily? {
         if parse(text, family: .v4) != nil { return .v4 }
         if parse(text, family: .v6) != nil { return .v6 }
         return nil
     }
 
-    static func parse(_ text: String, family: PrefixFamily) -> [UInt8]? {
+    nonisolated static func parse(_ text: String, family: PrefixFamily) -> [UInt8]? {
         switch family {
         case .v4:
             var address = in_addr()
@@ -268,10 +268,14 @@ private struct PrefixValue: Hashable {
         }
     }
 
-    static func format(_ value: PrefixValue) -> String? {
+    nonisolated static func format(_ value: PrefixValue) -> String? {
         var bytes = value.bytes
         var output = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
-        let family = value.family == .v4 ? AF_INET : AF_INET6
+        let family: Int32
+        switch value.family {
+        case .v4: family = AF_INET
+        case .v6: family = AF_INET6
+        }
         let formatted = bytes.withUnsafeMutableBytes { buffer in
             inet_ntop(family, buffer.baseAddress, &output, socklen_t(INET6_ADDRSTRLEN))
         }

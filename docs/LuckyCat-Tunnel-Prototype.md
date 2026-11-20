@@ -1,6 +1,6 @@
 # LuckyCat 标准隧道原型
 
-此原型对应《LuckyCat iOS 技术方案与设计文档》第 1–2 周开发线。主 App 导入单个双栈 WireGuard 测试配置，展示首次使用的数据披露，并通过 iOS 管理连接。扩展使用公开的 `NEPacketTunnelFlow` 接入固定版本的 wireguard-go，在收到远端加密握手后安装路由和 DNS 设置。系统 VPN 状态显示在主 App 中。
+此原型对应《LuckyCat iOS 技术方案与设计文档》第 1–2 周开发线，并已扩展到第五、六阶段的订阅导入与 Clash 内核。当前主 App 与扩展统一使用固定版本的 Clash 内核；导入的配置、分享链接和旧版双栈 WireGuard 配置都会转换为 Clash 配置，扩展不再链接 wireguard-go，避免同一进程出现两套 Go 运行时。旧的 WireGuard 配置会在下次刷新或连接时自动迁移。系统 VPN 状态与累计流量仍显示在主 App 中。
 
 原型配置和密钥按修订号保存在同团队共享钥匙串中，使用首次解锁后可访问的本机属性。系统 VPN 配置保存远端地址、配置标识和修订号。测试配置应在验证结束后撤销客户端公钥，并按团队流程删除原始文件。
 
@@ -100,13 +100,26 @@ xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhon
 (cd WireGuardBridge && go test -race ./...)
 ```
 
-模拟器 UI 测试不要加 `CODE_SIGNING_ALLOWED=NO`，否则测试宿主无法写入钥匙串，保存配置会失败。2026 年 11 月 20 日复跑：38 项单元测试通过，配置导入 UI 测试通过，Go race 测试通过，真机和模拟器编译通过。扩展流量上报、直连模式空路由、规则路由和真机长稳仍需在受控远端复测。
+模拟器 UI 测试不要加 `CODE_SIGNING_ALLOWED=NO`，否则测试宿主无法写入钥匙串，保存配置会失败。2026 年 11 月 20 日复跑：55 项单元测试、2 项配置导入 UI 测试通过，Go race 测试通过，真机和模拟器编译通过。扩展流量上报、直连模式空路由、规则路由和真机长稳仍需在受控远端复测。
 
-## 第五阶段 URL 导入与分流模式
+## 第五阶段 URL 导入与订阅
 
-配置页新增「从 URL 导入」。App 只接受 HTTPS 链接，使用独立、无缓存的 `URLSession` 下载，请求与资源超时 15 秒，流式读取超过 32 KB 立即取消。链接保存在 App 私有 `Profiles.json` 中，供配置页「更新配置」手动重新下载；不写入诊断，也不进入 App Group 快照或系统 VPN 配置。来源 URL 含 user/password 时拒绝导入。
+配置页的「从 URL 导入」按 FlClash 的订阅模型工作：只接受 HTTPS（未写 scheme 时自动补 `https://`），单次下载上限 8 MB，下载过程中一旦超过上限立即取消。也支持 `clash://install-config?url=...` 与 `luckycat://install-config?url=...` 深链。支持完整 Clash YAML、base64 订阅（分享链接列表）以及单个或多个分享链接。YAML 与分享链接的识别、协议解析由固定版本的 Clash 内核完成；分享链接会转换为带 `proxies` 的配置，并生成 `LuckyCat` 选择组与 `MATCH,LuckyCat` 规则。
 
-更新采用新修订号写入：先下载、解析并校验规则和网段上限，再写入新的快照与凭据，最后原子保存 `ProfileLibrary`。任一步失败都会删除本次新建的快照，保留原配置；节点选择按名称保留，找不到时回退到第一个节点。若系统 VPN 配置正引用被更新的配置，App 会先改写其快照修订号，再清理旧快照。
+订阅响应头会被解析并只保存在本机：`subscription-userinfo`（上传/下载/总量/到期）、`profile-update-interval`（小时）、`profile-title` 与 `content-disposition`（名称建议）、`profile-web-page-url`。配置页显示流量与到期时间，提供「自动更新」开关和「全部更新」。自动更新只在 App 打开或手动触发时运行，间隔取响应头，缺省 24 小时。链接与配置内容不写入诊断。
+
+完整配置与转换后的配置写入 App Group 的 `ClashConfigs/<revision>.yaml`（文件保护）；旧版 WireGuard 配置仍写入 `TunnelSnapshots` 和共享钥匙串。更新时先保存新修订、原子写入 `ProfileLibrary`，再按名称保留节点选择并清理旧修订；失败保留原配置。若系统 VPN 配置正引用被更新的配置，App 会先改写其修订号。
+
+## 第六阶段 Clash 内核与分流
+
+- `ClashPrototype/build.sh` 构建 `Clash.xcframework` 并安装到 `Frameworks/`；`Frameworks/` 不入库，克隆后需先运行脚本或放入预构建产物。
+- `ClashAdapter/Sources/ClashAdapter/PacketFlowBridge.swift` 在 `NEPacketTunnelFlow` 与内核读取的 socketpair 之间转发带四字节地址族头的 IP 包。
+- `ClashEngine` 负责 `ClashSetup`、`ClashNewService`、`startClassified`、运行时 `ClashSelectProxy`、网络路径监控与出站 socket 绑定。`openTun` 回调设置隧道地址、默认路由、内核提供的 DNS 接管地址与 MTU，然后返回 bridge 描述符。内核的 Unix socket 放在共享容器根目录，避免超过 Darwin 的 103 字节路径上限。
+- 流量通过 `ClashTrafficJSON` 的累计值上报。Clash 配置的策略组、域名规则、GEOIP、RULE-SET 与 Fake-IP 由内核执行；连接页不再显示 App 级分流选择。
+- 含 `GEOIP` / `GEOSITE` 规则的配置首次连接前，App 会把 `GeoIP.dat` 与 `GeoSite.dat` 下载到共享工作目录；导入配置统一设置 `geodata-mode: true`，避免扩展在隧道启动期间联网下载地理数据。
+- 旧版 WireGuard YAML/JSON 继续由 `ConfigurationImport` 解析，随后转换为 Clash WireGuard 节点；已有旧配置在首次刷新或连接时迁移。扩展只链接 Clash 内核，不再链接 wireguard-go。
+- 验证：macOS 探针用 socketpair 启动内核并进入 `running`；模拟器单元与 UI 测试通过。真机 VPN 授权、NEPacketTunnelFlow 到远端的完整路径与扩展内存仍需在 iPhone 上复测。
+- 许可：Clash 内核与 Adapter 均为 GPL-3.0，外部分发前需核对 GPL、开源模式与 App Store 条款。
 
 连接页新增「规则 / 全局 / 直连」分段选择，设置对整个 App 生效并保存在 `Profiles.json`。默认「全局」保持原有行为，连接中不能切换。
 
@@ -118,7 +131,7 @@ xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhon
 
 规则子集只接受 `IP-CIDR`、`IP-CIDR6` 和 `MATCH`，策略 `DIRECT` 表示直连，其他策略名（包括 `PROXY` 和策略组名）表示走隧道。`REJECT`、`DOMAIN`、`GEOIP`、`RULE-SET` 等规则会跳过并在导入预览中汇总提示；`MATCH` 之后的规则忽略。每条 IP 规则只分配尚未被前面规则占用的网段，从而近似 Clash 的先匹配先生效语义。默认直连且没有任何代理网段时，计划自动退化为直连。
 
-上限为每个配置 32 KB、16 个节点、256 行规则；有效规则最多 128 条，每个 included/excluded 路由列表最多 128 个网段。规则模式没有 `MATCH` 时按代理默认处理并提示；没有任何规则时按全局处理。直连和「默认直连」的规则模式不设置隧道 DNS，避免 DNS 服务器地址不在 included routes 内。
+旧版 WireGuard 导入的上限为每个配置 32 KB、16 个节点、256 行规则；有效规则最多 128 条，每个 included/excluded 路由列表最多 128 个网段。规则模式没有 `MATCH` 时按代理默认处理并提示；没有任何规则时按全局处理。直连和「默认直连」的规则模式不设置隧道 DNS，避免 DNS 服务器地址不在 included routes 内。
 
 快照 schema 升为 2，新增 `routePlan`。扩展同时接受 schema 1（按全局处理）和 schema 2；连接前 App 会按当前模式和规则重写所选修订的路由计划。`providerConfiguration` 仍只包含配置标识、配置 ID 和快照修订号。
 

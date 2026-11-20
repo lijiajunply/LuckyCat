@@ -13,6 +13,7 @@
   "files": [
     { "kind": "folder", "path": "LuckyCat", "target-membership": [ "LuckyCat" ] },
     { "kind": "folder", "path": "SharedTunnel", "target-membership": [ "LuckyCat", "LuckyCatPacketTunnel" ] },
+    { "kind": "folder", "path": "ClashAdapter", "target-membership": [ "LuckyCatPacketTunnel" ] },
     { "kind": "folder", "path": "LuckyCatPacketTunnel", "target-membership": [ "LuckyCatPacketTunnel" ] },
     { "kind": "folder", "path": "LuckyCatTests", "target-membership": [ "LuckyCatTests" ] },
     { "kind": "folder", "path": "LuckyCatUITests", "target-membership": [ "LuckyCatUITests" ] },
@@ -37,6 +38,19 @@
         "LuckyCatPacketTunnel",
       ],
       "build-phases": [
+        {
+          "kind": "script",
+          "name": "Prepare Clash SDK",
+          "input-paths": [
+            "$(SRCROOT)/Frameworks/Clash.xcframework/Info.plist",
+            "$(SRCROOT)/ClashPrototype/prepare-framework.sh",
+          ],
+          "output-paths": [
+            "$(DERIVED_FILE_DIR)/Clash.framework/Clash",
+          ],
+          "shell": "/bin/sh",
+          "script": "/bin/sh \"$SRCROOT/ClashPrototype/prepare-framework.sh\"",
+        },
         "compile-sources",
         "frameworks",
         "resources",
@@ -54,6 +68,11 @@
         "CURRENT_PROJECT_VERSION": "1",
         "DEVELOPMENT_TEAM": "8G4H6J3XHN",
         "ENABLE_PREVIEWS": "YES",
+        "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
+        "FRAMEWORK_SEARCH_PATHS": [
+          "$(inherited)",
+          "$(DERIVED_FILE_DIR)",
+        ],
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "Config/LuckyCat-Info.plist",
         "INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]": "YES",
@@ -69,6 +88,12 @@
         "IPHONEOS_DEPLOYMENT_TARGET": "$(RECOMMENDED_IPHONEOS_DEPLOYMENT_TARGET)",
         "LD_RUNPATH_SEARCH_PATHS": "@executable_path/Frameworks",
         "MARKETING_VERSION": "1.0",
+        "OTHER_LDFLAGS": [
+          "$(inherited)",
+          "-framework",
+          "Clash",
+          "-lresolv",
+        ],
         "PRODUCT_BUNDLE_IDENTIFIER": "com.luckyfish.LuckyCat",
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "SDKROOT": "auto",
@@ -89,19 +114,16 @@
       "build-phases": [
         {
           "kind": "script",
-          "name": "Build WireGuard",
+          "name": "Prepare Clash SDK",
           "input-paths": [
-            "$(SRCROOT)/WireGuardBridge/build.sh",
-            "$(SRCROOT)/WireGuardBridge/main.go",
-            "$(SRCROOT)/WireGuardBridge/Bridge.h",
-            "$(SRCROOT)/WireGuardBridge/go.mod",
-            "$(SRCROOT)/WireGuardBridge/go.sum",
+            "$(SRCROOT)/Frameworks/Clash.xcframework/Info.plist",
+            "$(SRCROOT)/ClashPrototype/prepare-framework.sh",
           ],
           "output-paths": [
-            "$(DERIVED_FILE_DIR)/libLuckyCatWireGuard.a",
+            "$(DERIVED_FILE_DIR)/Clash.framework/Clash",
           ],
           "shell": "/bin/sh",
-          "script": "/bin/sh \"$SRCROOT/WireGuardBridge/build.sh\"",
+          "script": "/bin/sh \"$SRCROOT/ClashPrototype/prepare-framework.sh\"",
         },
         "compile-sources",
         "frameworks",
@@ -113,6 +135,10 @@
         "CODE_SIGN_STYLE": "Automatic",
         "CURRENT_PROJECT_VERSION": "1",
         "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
+        "FRAMEWORK_SEARCH_PATHS": [
+          "$(inherited)",
+          "$(DERIVED_FILE_DIR)",
+        ],
         "GENERATE_INFOPLIST_FILE": "YES",
         "INFOPLIST_FILE": "Config/PacketTunnel-Info.plist",
         "IPHONEOS_DEPLOYMENT_TARGET": "27.2",
@@ -127,14 +153,15 @@
         "MARKETING_VERSION": "1.0",
         "OTHER_LDFLAGS": [
           "$(inherited)",
-          "-lLuckyCatWireGuard",
+          "-framework",
+          "Clash",
+          "-lresolv",
         ],
         "PRODUCT_BUNDLE_IDENTIFIER": "com.luckyfish.LuckyCat.PacketTunnel",
         "PRODUCT_NAME": "$(TARGET_NAME)",
         "SDKROOT": "iphoneos",
         "SKIP_INSTALL": "YES",
         "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
-        "SWIFT_OBJC_BRIDGING_HEADER": "WireGuardBridge/Bridge.h",
         "SWIFT_VERSION": "5.0",
         "TARGETED_DEVICE_FAMILY": "1,2",
       },
@@ -148,6 +175,19 @@
         "LuckyCat",
       ],
       "build-phases": [
+        {
+          "kind": "script",
+          "name": "Prepare Clash SDK",
+          "input-paths": [
+            "$(SRCROOT)/Frameworks/Clash.xcframework/Info.plist",
+            "$(SRCROOT)/ClashPrototype/prepare-framework.sh",
+          ],
+          "output-paths": [
+            "$(DERIVED_FILE_DIR)/Clash.framework/Clash",
+          ],
+          "shell": "/bin/sh",
+          "script": "/bin/sh \"$SRCROOT/ClashPrototype/prepare-framework.sh\"",
+        },
         "compile-sources",
         "frameworks",
         "resources",
@@ -157,6 +197,11 @@
         "CODE_SIGN_STYLE": "Automatic",
         "CURRENT_PROJECT_VERSION": "1",
         "DEVELOPMENT_TEAM": "8G4H6J3XHN",
+        "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
+        "FRAMEWORK_SEARCH_PATHS": [
+          "$(inherited)",
+          "$(DERIVED_FILE_DIR)",
+        ],
         "GENERATE_INFOPLIST_FILE": "YES",
         "IPHONEOS_DEPLOYMENT_TARGET": "27.2",
         "MARKETING_VERSION": "1.0",
@@ -182,6 +227,19 @@
         "LuckyCat",
       ],
       "build-phases": [
+        {
+          "kind": "script",
+          "name": "Prepare Clash SDK",
+          "input-paths": [
+            "$(SRCROOT)/Frameworks/Clash.xcframework/Info.plist",
+            "$(SRCROOT)/ClashPrototype/prepare-framework.sh",
+          ],
+          "output-paths": [
+            "$(DERIVED_FILE_DIR)/Clash.framework/Clash",
+          ],
+          "shell": "/bin/sh",
+          "script": "/bin/sh \"$SRCROOT/ClashPrototype/prepare-framework.sh\"",
+        },
         "compile-sources",
         "frameworks",
         "resources",
@@ -190,6 +248,11 @@
         "CODE_SIGN_STYLE": "Automatic",
         "CURRENT_PROJECT_VERSION": "1",
         "DEVELOPMENT_TEAM": "8G4H6J3XHN",
+        "ENABLE_USER_SCRIPT_SANDBOXING": "NO",
+        "FRAMEWORK_SEARCH_PATHS": [
+          "$(inherited)",
+          "$(DERIVED_FILE_DIR)",
+        ],
         "GENERATE_INFOPLIST_FILE": "YES",
         "IPHONEOS_DEPLOYMENT_TARGET": "27.2",
         "MARKETING_VERSION": "1.0",

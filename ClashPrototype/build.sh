@@ -63,6 +63,12 @@ host_target="$(uname -m)-apple-macos15.0"
 link_probe macosx "$host_target" macos-arm64_x86_64
 "$work_dir/probe-$host_target"
 
+xcrun --sdk macosx swiftc -parse-as-library -sdk "$(xcrun --sdk macosx --show-sdk-path)" \
+    -target "$host_target" -F "$framework/macos-arm64_x86_64" \
+    -framework Clash -lresolv "$prototype_dir/StartProbe.swift" \
+    -o "$work_dir/start-probe"
+"$work_dir/start-probe"
+
 (
     cd "$framework"
     shasum -a 256 Info.plist */Clash.framework/Clash
@@ -74,3 +80,9 @@ cat "$work_dir/sdk.sha256"
     go test -tags with_gvisor,cmfa,with_quic,no_easytier -count=1 -v \
         -run '^(TestControlledWireGuardInterop|TestYAMLJSONBridgeOutputIsDeterministic|TestStartSurfacesPacketFlowBridgeDupFailure)$' .
 )
+
+install_dir="${LUCKCAT_CLASH_FRAMEWORK_DIR:-$prototype_dir/../Frameworks}"
+mkdir -p "$install_dir"
+rm -rf "$install_dir/Clash.xcframework"
+cp -R "$framework" "$install_dir/Clash.xcframework"
+echo "Installed $install_dir/Clash.xcframework"

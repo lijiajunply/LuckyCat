@@ -24,12 +24,16 @@ final class PrototypeVPN {
     private(set) var importedRules: [RoutingRule] = []
     private(set) var importWarnings: [String] = []
     private(set) var stagedSourceURL: URL?
+    private(set) var stagedEngine: Profile.Engine = .clash
+    private(set) var stagedClashYAML: String?
+    private(set) var stagedGroups: [ClashImportGroup] = []
+    private(set) var stagedSubscription: Profile.Subscription?
+    private var stagedSuggestedName: String?
     private(set) var updatingProfileID: UUID?
     private(set) var library = ProfileLibrary()
     let diagnostics = DiagnosticLog()
     private var libraryLoaded = false
     private(set) var importError: String?
-    private(set) var savedEndpoint: String?
     private(set) var traffic: Traffic?
     private(set) var extensionReady: Bool?
     private(set) var issue: Issue?
@@ -58,7 +62,7 @@ final class PrototypeVPN {
         do {
             let file = try FileHandle(forReadingFrom: url)
             defer { try? file.close() }
-            stage(try file.read(upToCount: ConfigurationImport.maximumFileSize + 1) ?? Data())
+            stage(try file.read(upToCount: ClashImport.maximumBytes + 1) ?? Data())
         } catch {
             importError = "无法读取配置文件。"
         }
@@ -67,10 +71,15 @@ final class PrototypeVPN {
     func stage(_ data: Data, sourceURL: URL? = nil) {
         guard !busy, !isActive else { return }
         do {
-            apply(try ConfigurationImport.parse(data), sourceURL: sourceURL)
-        } catch {
-            discardImport()
-            importError = Self.describeImport(error)
+            apply(try ClashImport.parse(data), sourceURL: sourceURL)
+        } catch let clashError {
+            do {
+                let legacy = try ConfigurationImport.parse(data)
+                apply(try ClashImport.fromLegacy(legacy), sourceURL: sourceURL)
+            } catch {
+                discardImport()
+                importError = Self.describeImport(clashError)
+            }
         }
     }
 
@@ -91,10 +100,28 @@ final class PrototypeVPN {
         busy = true
         defer { busy = false }
         do {
-            let data = try await RemoteImport.fetch(url)
-            let document = try ConfigurationImport.parse(data)
-            _ = try RoutePlan.make(mode: .rule, rules: document.rules)
-            apply(document, sourceURL: url)
+            let response = try await RemoteImport.download(url)
+            let metadata = SubscriptionHeader.parse(headers: response.headers)
+            do {
+                let document = try ClashImport.parse(response.data)
+                apply(
+                    document, sourceURL: url,
+                    subscription: metadata.subscription,
+                    suggestedName: metadata.suggestedName
+                )
+            } catch let clashError {
+                do {
+                    let legacy = try ConfigurationImport.parse(response.data)
+                    apply(
+                        try ClashImport.fromLegacy(legacy), sourceURL: url,
+                        subscription: metadata.subscription,
+                        suggestedName: metadata.suggestedName
+                    )
+                } catch {
+                    importError = Self.describeImport(clashError)
+                    return false
+                }
+            }
             return true
         } catch {
             importError = Self.describeImport(error)
@@ -107,21 +134,40 @@ final class PrototypeVPN {
         importedRules = []
         importWarnings = []
         stagedSourceURL = nil
+        stagedEngine = .clash
+        stagedClashYAML = nil
+        stagedGroups = []
+        stagedSubscription = nil
+        stagedSuggestedName = nil
         importError = nil
     }
 
+    var hasStagedImport: Bool { stagedClashYAML != nil }
+
     var defaultImportName: String {
+        if let suggested = stagedSuggestedName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !suggested.isEmpty {
+            return String(suggested.prefix(80))
+        }
         guard let url = stagedSourceURL else { return "" }
         let file = url.deletingPathExtension().lastPathComponent
         let candidate = file.isEmpty ? (url.host() ?? "") : file
         return String(candidate.prefix(80))
     }
 
-    private func apply(_ document: ImportedConfiguration, sourceURL: URL?) {
+    private func apply(
+        _ document: ImportedConfiguration, sourceURL: URL?,
+        subscription: Profile.Subscription? = nil, suggestedName: String? = nil
+    ) {
         imported = document.nodes
         importedRules = document.rules
         importWarnings = document.warnings
         stagedSourceURL = sourceURL
+        stagedEngine = document.engine
+        stagedClashYAML = document.clashYAML
+        stagedGroups = document.groups
+        stagedSubscription = subscription
+        stagedSuggestedName = suggestedName
         importError = nil
     }
 
@@ -130,51 +176,61 @@ final class PrototypeVPN {
             importError = PrototypeError.profileStorage.localizedDescription
             return false
         }
-        guard !busy, !isActive, !imported.isEmpty else { return false }
-        let validationPlan: RoutePlan
-        do {
-            validationPlan = try RoutePlan.make(mode: .rule, rules: importedRules)
-        } catch {
-            importError = Self.describeImport(error)
+        guard !busy, !isActive else { return false }
+        guard let yaml = stagedClashYAML else {
+            importError = ClashImport.Failure.unreadable.localizedDescription
             return false
         }
-        let plan = (try? RoutePlan.make(mode: library.trafficMode, rules: importedRules)) ?? validationPlan
         let profileID = UUID()
-        var nodes: [Profile.Node] = []
+        let revision = UUID()
         do {
-            for node in imported {
-                let revision = UUID()
-                try TunnelSnapshot.save(
-                    node.configuration, profileID: profileID, revision: revision, routePlan: plan
+            try ClashTunnelStore.save(yaml, profileID: profileID, revision: revision)
+            var nodes = imported.map { node in
+                Profile.Node(
+                    id: UUID(), name: node.name, endpoint: node.endpoint, type: node.type
                 )
-                nodes.append(Profile.Node(
-                    id: revision, name: node.name, endpoint: node.configuration.endpoint,
-                    clientIPv4: node.configuration.clientIPv4,
-                    clientIPv6: node.configuration.clientIPv6,
-                    dnsServers: node.configuration.dnsServers
-                ))
             }
-            guard let selected = nodes.first(where: { $0.name == selectedNode }) else {
+            let synthesizedNode = nodes.isEmpty
+            if synthesizedNode {
+                nodes = [Profile.Node(
+                    id: UUID(), name: "默认策略", endpoint: "由配置决定", type: "auto"
+                )]
+            }
+            guard let selected = nodes.first(where: { $0.name == selectedNode }) ?? nodes.first else {
                 throw PrototypeError.missingConfiguration
             }
             let profile = Profile(
                 id: profileID, name: name, nodes: nodes, selectedNodeID: selected.id,
-                sourceURL: stagedSourceURL, rules: importedRules.isEmpty ? nil : importedRules
+                sourceURL: stagedSourceURL, rules: nil, engine: .clash,
+                clashRevision: revision,
+                clashGroup: synthesizedNode
+                    ? nil
+                    : Self.selectableGroup(for: selected, in: stagedGroups),
+                clashGroups: stagedGroups,
+                subscription: stagedSubscription, autoUpdate: true
             )
             var updated = library
             updated.profiles.append(profile)
             updated.selectedProfileID = profileID
             try updated.save()
             library = updated
+            let warnings = importWarnings
             discardImport()
-            message = nil
+            message = warnings.isEmpty ? nil : warnings.joined(separator: " ")
             record("配置已保存")
             return true
         } catch {
-            for node in nodes { TunnelSnapshot.remove(revision: node.id) }
+            ClashTunnelStore.remove(revision: revision)
             importError = Self.describeImport(error)
             return false
         }
+    }
+
+    private static func selectableGroup(
+        for node: Profile.Node, in groups: [ClashImportGroup]
+    ) -> String? {
+        groups.first { $0.isSelectable && $0.members.contains(node.name) }?.name
+            ?? groups.first(where: \.isSelectable)?.name
     }
 
     func setMode(_ mode: TrafficMode) {
@@ -196,67 +252,172 @@ final class PrototypeVPN {
         guard libraryLoaded, !busy, !isActive,
               let sourceURL = profile.sourceURL,
               let index = library.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        if profile.resolvedEngine == .clash {
+            await updateClash(profile, index: index, sourceURL: sourceURL)
+            return
+        }
         busy = true
         updatingProfileID = profile.id
         defer {
             busy = false
             updatingProfileID = nil
         }
-        var created: [Profile.Node] = []
         do {
-            let data = try await RemoteImport.fetch(sourceURL)
-            let document = try ConfigurationImport.parse(data)
-            _ = try RoutePlan.make(mode: .rule, rules: document.rules)
-            let plan = try RoutePlan.make(mode: library.trafficMode, rules: document.rules)
+            let migrated = try await migrateLegacy(
+                profile, index: index, rewriteManager: true
+            )
+            await updateClash(migrated, index: index, sourceURL: sourceURL)
+        } catch {
+            message = Self.describeImport(error)
+            issue = .configuration
+        }
+    }
 
-            for node in document.nodes {
-                let revision = UUID()
-                try TunnelSnapshot.save(
-                    node.configuration, profileID: profile.id, revision: revision, routePlan: plan
-                )
-                created.append(Profile.Node(
-                    id: revision, name: node.name, endpoint: node.configuration.endpoint,
-                    clientIPv4: node.configuration.clientIPv4,
-                    clientIPv6: node.configuration.clientIPv6,
-                    dnsServers: node.configuration.dnsServers
-                ))
+    private func updateClash(_ profile: Profile, index: Int, sourceURL: URL) async {
+        busy = true
+        updatingProfileID = profile.id
+        defer {
+            busy = false
+            updatingProfileID = nil
+        }
+        let revision = UUID()
+        do {
+            let response = try await RemoteImport.download(sourceURL)
+            let metadata = SubscriptionHeader.parse(headers: response.headers)
+            let document: ImportedConfiguration
+            do {
+                document = try ClashImport.parse(response.data)
+            } catch {
+                let legacy = try ConfigurationImport.parse(response.data)
+                document = try ClashImport.fromLegacy(legacy)
             }
-            guard let selected = created.first(where: { $0.name == profile.selectedNode?.name }) ?? created.first else {
+            guard let yaml = document.clashYAML else { throw ClashImport.Failure.unreadable }
+            try ClashTunnelStore.save(yaml, profileID: profile.id, revision: revision)
+
+            var nodes = document.nodes.map { node in
+                Profile.Node(id: UUID(), name: node.name, endpoint: node.endpoint, type: node.type)
+            }
+            let synthesizedNode = nodes.isEmpty
+            if synthesizedNode {
+                nodes = [Profile.Node(
+                    id: UUID(), name: profile.selectedNode?.name ?? "默认策略", endpoint: "由配置决定", type: "auto"
+                )]
+            }
+            guard let selected = nodes.first(where: { $0.name == profile.selectedNode?.name }) ?? nodes.first else {
                 throw PrototypeError.missingConfiguration
             }
+            var subscription = profile.subscription ?? Profile.Subscription()
+            Self.merge(metadata.subscription, into: &subscription)
+            subscription.lastUpdated = Date()
+
             var updated = library
             updated.profiles[index] = Profile(
-                id: profile.id, name: profile.name, nodes: created, selectedNodeID: selected.id,
-                sourceURL: sourceURL, rules: document.rules.isEmpty ? nil : document.rules
+                id: profile.id, name: profile.name, nodes: nodes, selectedNodeID: selected.id,
+                sourceURL: sourceURL, rules: nil, engine: .clash,
+                clashRevision: revision,
+                clashGroup: synthesizedNode
+                    ? nil
+                    : Self.selectableGroup(for: selected, in: document.groups),
+                clashGroups: document.groups,
+                subscription: subscription, autoUpdate: profile.autoUpdate
             )
             try updated.save()
             library = updated
 
-            // Keep the old revisions when the system manager still points at this profile
-            // but cannot be rewritten; otherwise a Settings-initiated start would fail.
             var canRemoveOldRevisions = true
             #if !targetEnvironment(simulator)
             do {
                 if let manager = try await loadManager(),
                    let provider = manager.protocolConfiguration as? NETunnelProviderProtocol,
-                   provider.providerConfiguration?[TunnelSnapshot.profileKey] as? String == profile.id.uuidString {
-                    _ = try await save(profile: updated.profiles[index], node: selected, to: manager)
+                   provider.providerConfiguration?[ClashTunnelStore.profileKey] as? String == profile.id.uuidString {
+                    _ = try await saveClash(
+                        profile: updated.profiles[index], node: selected, to: manager
+                    )
                 }
             } catch {
                 canRemoveOldRevisions = false
             }
             #endif
-            if canRemoveOldRevisions {
-                for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
+            if canRemoveOldRevisions, let previous = profile.clashRevision {
+                ClashTunnelStore.remove(revision: previous)
             }
             message = document.warnings.isEmpty ? nil : document.warnings.joined(separator: " ")
             issue = nil
             record("配置已更新")
         } catch {
-            for node in created { TunnelSnapshot.remove(revision: node.id) }
+            ClashTunnelStore.remove(revision: revision)
             message = Self.describeImport(error)
             issue = .configuration
         }
+    }
+
+    /// Moves a profile created by the retired WireGuard engine to a Clash
+    /// configuration. The extension only links the Clash core, so no profile
+    /// may stay on the WireGuard engine.
+    private func migrateLegacy(
+        _ profile: Profile, index: Int, rewriteManager: Bool
+    ) async throws -> Profile {
+        var nodes: [ImportedNode] = []
+        for node in profile.nodes {
+            guard let configuration = try? TunnelSnapshot.load(
+                profileID: profile.id, revision: node.id
+            ) else { continue }
+            nodes.append(ImportedNode(
+                name: node.name, type: "wireguard", endpoint: node.endpoint,
+                configuration: configuration
+            ))
+        }
+        let converted = try ClashImport.fromLegacy(ImportedConfiguration(
+            engine: .wireGuard, nodes: nodes, rules: profile.rules ?? [], warnings: []
+        ))
+        guard let yaml = converted.clashYAML else { throw ClashImport.Failure.unreadable }
+
+        let revision = UUID()
+        try ClashTunnelStore.save(yaml, profileID: profile.id, revision: revision)
+        let migratedNodes = converted.nodes.map { node in
+            Profile.Node(id: UUID(), name: node.name, endpoint: node.endpoint, type: node.type)
+        }
+        guard let selected = migratedNodes.first(where: { $0.name == profile.selectedNode?.name })
+            ?? migratedNodes.first else {
+            throw PrototypeError.missingConfiguration
+        }
+        let group = converted.groups.first {
+            $0.isSelectable && $0.members.contains(selected.name)
+        }?.name
+        let migrated = Profile(
+            id: profile.id, name: profile.name, nodes: migratedNodes,
+            selectedNodeID: selected.id, sourceURL: profile.sourceURL, rules: nil,
+            engine: .clash, clashRevision: revision, clashGroup: group,
+            clashGroups: converted.groups,
+            subscription: profile.subscription, autoUpdate: profile.autoUpdate
+        )
+        var updated = library
+        updated.profiles[index] = migrated
+        try updated.save()
+        library = updated
+        for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
+
+        #if !targetEnvironment(simulator)
+        if rewriteManager,
+           let manager = try await loadManager(),
+           let provider = manager.protocolConfiguration as? NETunnelProviderProtocol,
+           provider.providerConfiguration?[TunnelSnapshot.profileKey] as? String == profile.id.uuidString {
+            _ = try await saveClash(profile: migrated, node: selected, to: manager)
+        }
+        #endif
+        record("旧配置已迁移")
+        return migrated
+    }
+
+    private static func merge(
+        _ incoming: Profile.Subscription, into target: inout Profile.Subscription
+    ) {
+        if let value = incoming.upload { target.upload = value }
+        if let value = incoming.download { target.download = value }
+        if let value = incoming.total { target.total = value }
+        if let value = incoming.expire { target.expire = value }
+        if let value = incoming.updateIntervalHours { target.updateIntervalHours = value }
+        if let value = incoming.webPageURL { target.webPageURL = value }
     }
 
     func select(profileID: UUID) {
@@ -278,7 +439,15 @@ final class PrototypeVPN {
             && (nodeID == nil || updated.profiles[index].selectedNodeID == nodeID)
         guard !alreadySelected else { return }
         updated.selectedProfileID = updated.profiles[index].id
-        if let nodeID { updated.profiles[index].selectedNodeID = nodeID }
+        if let nodeID {
+            updated.profiles[index].selectedNodeID = nodeID
+            if updated.profiles[index].resolvedEngine == .clash,
+               let node = updated.profiles[index].nodes.first(where: { $0.id == nodeID }) {
+                updated.profiles[index].clashGroup = Self.selectableGroup(
+                    for: node, in: updated.profiles[index].clashGroups ?? []
+                )
+            }
+        }
         do {
             try updated.save()
             library = updated
@@ -312,12 +481,54 @@ final class PrototypeVPN {
             }
             try updated.save()
             library = updated
-            for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
+            if profile.resolvedEngine == .clash {
+                if let revision = profile.clashRevision {
+                    ClashTunnelStore.remove(revision: revision)
+                }
+                for node in profile.nodes { ClashTunnelStore.remove(revision: node.id) }
+            } else {
+                for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
+            }
             message = nil
             issue = nil
             record("配置已删除")
         } catch {
             present(error)
+        }
+    }
+
+    func setAutoUpdate(_ enabled: Bool, for profileID: UUID) {
+        guard libraryLoaded, !busy, !isActive,
+              let index = library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        var updated = library
+        updated.profiles[index].autoUpdate = enabled
+        do {
+            try updated.save()
+            library = updated
+            record("切换自动更新")
+        } catch {
+            present(error)
+        }
+    }
+
+    func updateAll() async {
+        guard !busy, !isActive else { return }
+        for profile in library.profiles where profile.sourceURL != nil {
+            await update(profile)
+        }
+    }
+
+    func updateDueProfiles() async {
+        guard !busy, !isActive else { return }
+        let now = Date()
+        let due = library.profiles.filter { profile in
+            guard profile.sourceURL != nil, profile.autoUpdateEnabled,
+                  let last = profile.subscription?.lastUpdated else { return false }
+            let hours = profile.subscription?.updateIntervalHours ?? 24
+            return now.timeIntervalSince(last) >= TimeInterval(hours * 3600)
+        }
+        for profile in due {
+            await update(profile)
         }
     }
 
@@ -336,6 +547,12 @@ final class PrototypeVPN {
         defer { busy = false }
         do {
             adopt(try await loadManager())
+            if !isActive,
+               let selected = library.selectedProfile,
+               selected.resolvedEngine == .wireGuard,
+               let index = library.profiles.firstIndex(where: { $0.id == selected.id }) {
+                _ = try await migrateLegacy(selected, index: index, rewriteManager: true)
+            }
             if status == .connected { queryExtensionStatus() }
         } catch {
             present(error)
@@ -362,26 +579,36 @@ final class PrototypeVPN {
             adopt(existing)
             guard !isActive else { return }
             let selected: NETunnelProviderManager
-            if let profile = library.selectedProfile, let node = profile.selectedNode {
-                _ = try TunnelSnapshot.load(profileID: profile.id, revision: node.id)
-                let plan = try RoutePlan.make(mode: library.trafficMode, rules: profile.rules ?? [])
-                try TunnelSnapshot.saveRoutePlan(plan, profileID: profile.id, revision: node.id)
-                selected = try await save(profile: profile, node: node, to: existing ?? NETunnelProviderManager())
-            } else if let existing, Self.legacyRevision(of: existing) != nil {
-                selected = existing
-                if !selected.isEnabled {
-                    selected.isEnabled = true
-                    try await selected.saveToPreferences()
+            if let selectedProfile = library.selectedProfile {
+                guard let index = library.profiles.firstIndex(where: { $0.id == selectedProfile.id }) else {
+                    throw PrototypeError.missingConfiguration
                 }
-                try await selected.loadFromPreferences()
+                var profile = selectedProfile
+                if profile.resolvedEngine == .wireGuard {
+                    message = "正在迁移旧版 WireGuard 配置…"
+                    profile = try await migrateLegacy(
+                        profile, index: index, rewriteManager: false
+                    )
+                    message = nil
+                }
+                guard let node = profile.selectedNode else {
+                    throw PrototypeError.missingConfiguration
+                }
+                let revision = profile.clashRevision ?? node.id
+                let yaml = try ClashTunnelStore.load(profileID: profile.id, revision: revision)
+                if ClashGeodata.isRequired(yaml) {
+                    message = "正在准备 GeoIP 数据…"
+                    try await ClashGeodata.ensure(yaml: yaml)
+                    message = nil
+                }
+                selected = try await saveClash(
+                    profile: profile, node: node, to: existing ?? NETunnelProviderManager()
+                )
             } else {
                 throw PrototypeError.missingConfiguration
             }
 
             adopt(selected)
-            if let legacyRevision = Self.legacyRevision(of: selected) {
-                _ = try PrototypeStore.load(revision: legacyRevision)
-            }
             guard let session = selected.connection as? NETunnelProviderSession else {
                 throw PrototypeError.missingConfiguration
             }
@@ -548,29 +775,28 @@ final class PrototypeVPN {
         return matches.first
     }
 
-    private func save(
+    private func saveClash(
         profile: Profile,
         node: Profile.Node,
         to manager: NETunnelProviderManager
     ) async throws -> NETunnelProviderManager {
-        let previousRevision = Self.legacyRevision(of: manager)
         let provider = NETunnelProviderProtocol()
         provider.providerBundleIdentifier = try Self.providerIdentifier()
         provider.serverAddress = "LuckyCat"
         provider.providerConfiguration = [
             PrototypeStore.configurationIdentifierKey: PrototypeStore.configurationIdentifier,
-            TunnelSnapshot.profileKey: profile.id.uuidString,
-            TunnelSnapshot.revisionKey: node.id.uuidString
+            ClashTunnelStore.engineKey: ClashTunnelStore.engineClash,
+            ClashTunnelStore.profileKey: profile.id.uuidString,
+            ClashTunnelStore.revisionKey: (profile.clashRevision ?? node.id).uuidString,
+            ClashTunnelStore.selectedGroupKey: profile.clashGroup ?? "",
+            ClashTunnelStore.selectedNodeKey: node.name
         ]
         manager.protocolConfiguration = provider
-        manager.localizedDescription = "LuckyCat · WireGuard"
+        manager.localizedDescription = "LuckyCat · Clash"
         manager.isEnabled = true
         manager.isOnDemandEnabled = false
         try await manager.saveToPreferences()
         try await manager.loadFromPreferences()
-        if let previousRevision, [.invalid, .disconnected].contains(manager.connection.status) {
-            PrototypeStore.remove(revision: previousRevision)
-        }
         return manager
     }
 
@@ -584,6 +810,8 @@ final class PrototypeVPN {
     }
 
     static func issue(for error: Error) -> Issue? {
+        if error is ClashImport.Failure { return .configuration }
+        if error is ClashGeodata.Failure { return .remote }
         let nsError = error as NSError
         if nsError.domain == PrototypeError.errorDomain,
            let prototype = PrototypeError(rawValue: nsError.code) {
@@ -618,21 +846,12 @@ final class PrototypeVPN {
     private func adopt(_ manager: NETunnelProviderManager?) {
         self.manager = manager
         status = manager?.connection.status ?? .invalid
-        savedEndpoint = manager.flatMap {
-            Self.legacyRevision(of: $0) == nil ? nil : $0.protocolConfiguration?.serverAddress
-        }
         syncTrafficPolling()
     }
 
     private func clearConnectionRequest() {
         requestingConnection = false
         connectionRequest = nil
-    }
-
-    private static func legacyRevision(of manager: NETunnelProviderManager) -> UUID? {
-        let provider = manager.protocolConfiguration as? NETunnelProviderProtocol
-        let value = provider?.providerConfiguration?[PrototypeStore.revisionKey] as? String
-        return value.flatMap(UUID.init(uuidString:))
     }
 
     private static func providerIdentifier() throws -> String {
@@ -658,6 +877,10 @@ final class PrototypeVPN {
         }
         if nsError.domain == NEVPNErrorDomain && nsError.code == NEVPNError.configurationReadWriteFailed.rawValue {
             return "无法读写系统 VPN 配置，请核对 VPN 授权和签名。"
+        }
+        if let localized = error as? LocalizedError,
+           let description = localized.errorDescription, !description.isEmpty {
+            return description
         }
         return "VPN 操作失败（\(nsError.domain) \(nsError.code)）。"
     }

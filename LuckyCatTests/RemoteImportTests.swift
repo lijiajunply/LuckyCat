@@ -12,6 +12,89 @@ struct RemoteImportTests {
         #expect(RemoteImport.url(from: "file:///tmp/config.yaml") == nil)
         #expect(RemoteImport.url(from: "https://user:secret@example.com/config.yaml") == nil)
         #expect(RemoteImport.url(from: "https://") == nil)
+        #expect(RemoteImport.url(from: "example.com/config.yaml")?.absoluteString
+            == "https://example.com/config.yaml")
+    }
+
+    @Test func streamingDownloadReturnsBodyAndHeaders() async throws {
+        StubURLProtocol.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: request.url!, statusCode: 200, httpVersion: nil,
+                    headerFields: ["Subscription-Userinfo": "upload=7; download=8"]
+                )!,
+                Data("proxies:\n".utf8)
+            )
+        }
+        let response = try await RemoteImport.download(
+            URL(string: "https://example.com/config.yaml")!, configuration: streamingConfiguration()
+        )
+        #expect(String(decoding: response.data, as: UTF8.self) == "proxies:\n")
+        #expect(response.header("subscription-userinfo") == "upload=7; download=8")
+    }
+
+    @Test func streamingDownloadRejectsDeclaredOversizeContent() async {
+        StubURLProtocol.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: request.url!, statusCode: 200, httpVersion: nil,
+                    headerFields: ["Content-Length": "\(RemoteImport.maximumBytes + 1)"]
+                )!,
+                Data()
+            )
+        }
+        do {
+            _ = try await RemoteImport.download(
+                URL(string: "https://example.com/config.yaml")!, configuration: streamingConfiguration()
+            )
+            Issue.record("Expected a size failure")
+        } catch let failure as RemoteImport.Failure {
+            #expect(failure == .tooLarge)
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test func streamingDownloadRefusesHTTPRedirect() async {
+        StubURLProtocol.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: request.url!, statusCode: 302, httpVersion: nil,
+                    headerFields: ["Location": "http://example.com/config.yaml"]
+                )!,
+                Data()
+            )
+        }
+        do {
+            _ = try await RemoteImport.download(
+                URL(string: "https://example.com/config.yaml")!, configuration: streamingConfiguration()
+            )
+            Issue.record("Expected an insecure-scheme failure")
+        } catch let failure as RemoteImport.Failure {
+            #expect(failure == .insecureScheme || failure == .status(302))
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test func downloadReturnsLowercasedHeaders() async throws {
+        StubURLProtocol.handler = { request in
+            (
+                HTTPURLResponse(
+                    url: request.url!, statusCode: 200, httpVersion: nil,
+                    headerFields: [
+                        "Subscription-Userinfo": "upload=1; download=2; total=3",
+                        "Profile-Update-Interval": "6"
+                    ]
+                )!,
+                Data("proxies: []".utf8)
+            )
+        }
+        let response = try await RemoteImport.download(
+            URL(string: "https://example.com/config.yaml")!, session: session()
+        )
+        #expect(response.header("subscription-userinfo") == "upload=1; download=2; total=3")
+        #expect(response.header("profile-update-interval") == "6")
     }
 
     @Test func fetchRejectsNonHTTPSWithoutARequest() async {
@@ -122,9 +205,13 @@ struct RemoteImportTests {
     }
 
     private func session() -> URLSession {
-        let configuration = URLSessionConfiguration.ephemeral
+        URLSession(configuration: streamingConfiguration())
+    }
+
+    private func streamingConfiguration() -> URLSessionConfiguration {
+        let configuration = RemoteImport.configuration
         configuration.protocolClasses = [StubURLProtocol.self]
-        return URLSession(configuration: configuration)
+        return configuration
     }
 }
 

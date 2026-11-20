@@ -26,12 +26,39 @@ struct ContentView: View {
             profiles.tabItem { Label("配置", systemImage: "folder") }.tag(Page.profiles)
             settings.tabItem { Label("设置", systemImage: "gearshape") }.tag(Page.settings)
         }
-        .task { await vpn.refresh() }
+        .task {
+            await vpn.refresh()
+            await vpn.updateDueProfiles()
+        }
         .onChange(of: scenePhase) {
-            if scenePhase == .active { Task { await vpn.refresh() } }
+            if scenePhase == .active {
+                Task {
+                    await vpn.refresh()
+                    await vpn.updateDueProfiles()
+                }
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NEVPNStatusDidChange)) { _ in
             Task { await vpn.updateStatus() }
+        }
+        .onOpenURL { url in
+            handleOpenURL(url)
+        }
+    }
+
+    /// Supports `clash://install-config?url=<subscription>` and
+    /// `luckycat://install-config?url=<subscription>` like FlClash.
+    private func handleOpenURL(_ url: URL) {
+        guard ["clash", "luckycat"].contains(url.scheme?.lowercased() ?? "") else { return }
+        let target = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?.first(where: { $0.name == "url" })?.value
+        guard let target, RemoteImport.url(from: target) != nil else { return }
+        page = .profiles
+        vpn.discardImport()
+        Task {
+            if await vpn.importURL(target) {
+                showingPreview = true
+            }
         }
     }
 
@@ -43,9 +70,9 @@ struct ContentView: View {
                     if let profile = vpn.library.selectedProfile, let node = profile.selectedNode {
                         LabeledContent("配置", value: profile.name)
                         LabeledContent("节点", value: node.name)
-                        LabeledContent("远端", value: node.endpoint)
-                    } else if let endpoint = vpn.savedEndpoint {
-                        LabeledContent("测试远端", value: endpoint)
+                        if !node.endpoint.isEmpty {
+                            LabeledContent("远端", value: node.endpoint)
+                        }
                     }
                     if vpn.isActive {
                         LabeledContent("扩展", value: extensionLabel)
@@ -54,7 +81,7 @@ struct ContentView: View {
                 }
 
                 Section {
-                    if vpn.library.selectedProfile == nil && vpn.savedEndpoint == nil {
+                    if vpn.library.selectedProfile == nil {
                         Button("导入配置", systemImage: "document.badge.plus") { page = .profiles }
                     } else {
                         Toggle(isOn: connectionBinding) {
@@ -64,7 +91,7 @@ struct ContentView: View {
                         .accessibilityIdentifier("connect-vpn")
                     }
                 } footer: {
-                    if vpn.library.selectedProfile == nil && vpn.savedEndpoint == nil {
+                    if vpn.library.selectedProfile == nil {
                         Text("导入配置后才能连接。")
                     } else if vpn.isActive {
                         Text("断开后，iOS 可能恢复普通网络访问。")
@@ -73,19 +100,29 @@ struct ContentView: View {
                     }
                 }
 
-                Section {
-                    Picker("分流模式", selection: modeBinding) {
-                        ForEach(TrafficMode.allCases, id: \.self) { mode in
-                            Text(mode.title).tag(mode)
-                        }
+                if vpn.library.selectedProfile?.resolvedEngine == .clash {
+                    Section {
+                        LabeledContent("分流", value: "由 Clash 配置决定")
+                    } header: {
+                        Text("分流模式")
+                    } footer: {
+                        Text("代理组与规则由导入的 Clash 配置在隧道内执行。")
                     }
-                    .pickerStyle(.segmented)
-                    .disabled(vpn.busy || vpn.isActive)
-                    .accessibilityIdentifier("mode-picker")
-                } header: {
-                    Text("分流模式")
-                } footer: {
-                    Text(modeExplanation)
+                } else {
+                    Section {
+                        Picker("分流模式", selection: modeBinding) {
+                            ForEach(TrafficMode.allCases, id: \.self) { mode in
+                                Text(mode.title).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .disabled(vpn.busy || vpn.isActive)
+                        .accessibilityIdentifier("mode-picker")
+                    } header: {
+                        Text("分流模式")
+                    } footer: {
+                        Text(modeExplanation)
+                    }
                 }
 
                 if let issue = vpn.issue, issue != .storage {
@@ -137,7 +174,7 @@ struct ContentView: View {
     }
 
     private var connectToggleDisabled: Bool {
-        if vpn.library.selectedProfile == nil && vpn.savedEndpoint == nil { return true }
+        if vpn.library.selectedProfile == nil { return true }
         return vpn.busy || (vpn.isActive && !vpn.canStop)
     }
 
@@ -195,6 +232,23 @@ struct ContentView: View {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .binary)
     }
 
+    private func autoUpdateBinding(_ profile: Profile) -> Binding<Bool> {
+        Binding(
+            get: {
+                vpn.library.profiles.first(where: { $0.id == profile.id })?.autoUpdateEnabled ?? true
+            },
+            set: { vpn.setAutoUpdate($0, for: profile.id) }
+        )
+    }
+
+    private func flow(_ subscription: Profile.Subscription) -> String {
+        ImportSummary.flow(subscription)
+    }
+
+    private func expiry(_ date: Date?) -> String {
+        ImportSummary.expiry(date)
+    }
+
     private var profiles: some View {
         NavigationStack {
             Form {
@@ -206,6 +260,11 @@ struct ContentView: View {
                         showingURLImport = true
                     }
                     .accessibilityIdentifier("url-import")
+                    if vpn.library.profiles.contains(where: { $0.sourceURL != nil }) {
+                        Button("全部更新", systemImage: "arrow.triangle.2.circlepath") {
+                            Task { await vpn.updateAll() }
+                        }
+                    }
                     if let error = vpn.importError { Text(error).foregroundStyle(.orange) }
                     feedback
                 }
@@ -222,8 +281,10 @@ struct ContentView: View {
                                         Image(systemName: "checkmark").accessibilityLabel("当前节点")
                                     }
                                 } label: {
-                                    Text(node.name)
-                                    Text(node.endpoint)
+                                    Text(profile.resolvedEngine == .clash
+                                        ? "\(node.name) · \(node.type ?? "node")"
+                                        : node.name)
+                                    if !node.endpoint.isEmpty { Text(node.endpoint) }
                                 }
                             }
                             .disabled(vpn.busy || vpn.isActive)
@@ -234,6 +295,18 @@ struct ContentView: View {
                         }
                         if let sourceURL = profile.sourceURL {
                             LabeledContent("来源", value: sourceURL.host() ?? "链接")
+                            if let subscription = profile.subscription {
+                                LabeledContent("流量", value: flow(subscription))
+                                LabeledContent("到期", value: expiry(subscription.expire))
+                                if let updated = subscription.lastUpdated {
+                                    LabeledContent(
+                                        "上次更新",
+                                        value: updated.formatted(date: .abbreviated, time: .shortened)
+                                    )
+                                }
+                            }
+                            Toggle("自动更新", isOn: autoUpdateBinding(profile))
+                                .disabled(vpn.busy || vpn.isActive)
                             Button {
                                 Task { await vpn.update(profile) }
                             } label: {
@@ -243,7 +316,10 @@ struct ContentView: View {
                                         Text("正在更新…")
                                     }
                                 } else {
-                                    Label("更新配置", systemImage: "arrow.clockwise")
+                                    Label(
+                                        profile.resolvedEngine == .clash ? "更新订阅" : "更新配置",
+                                        systemImage: "arrow.clockwise"
+                                    )
                                 }
                             }
                             .accessibilityIdentifier("update-profile-\(profile.name)")
@@ -266,7 +342,7 @@ struct ContentView: View {
                 switch result {
                 case .success(let url):
                     vpn.importFile(url)
-                    showingPreview = !vpn.imported.isEmpty
+                    showingPreview = vpn.hasStagedImport
                 case .failure(let error):
                     if (error as NSError).code != NSUserCancelledError {
                         vpn.message = "无法打开配置文件。"
@@ -274,7 +350,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingPaste, onDismiss: {
-                showingPreview = !vpn.imported.isEmpty
+                showingPreview = vpn.hasStagedImport
             }) {
                 PasteConfiguration { text in
                     vpn.stage(Data(text.utf8))
@@ -282,7 +358,7 @@ struct ContentView: View {
                 }
             }
             .sheet(isPresented: $showingURLImport, onDismiss: {
-                showingPreview = !vpn.imported.isEmpty
+                showingPreview = vpn.hasStagedImport
             }) {
                 URLImport(vpn: vpn)
             }
@@ -312,9 +388,10 @@ struct ContentView: View {
                 }
                 NavigationLink("配置兼容性") {
                     List {
-                        Text("支持从文件、粘贴或 HTTPS URL 导入（单次下载上限 32 KB），可保存来源链接并手动更新。节点需使用 WireGuard、IP 字面量远端、双栈客户端地址和 1–3 个隧道内 DNS 地址。")
-                        Text("分流模式：全局将全部流量送入隧道；直连不接管流量并使用系统 DNS；规则模式支持 Clash rules 中的 IP-CIDR、IP-CIDR6 与 MATCH，DIRECT 走直连，其他策略名走隧道。")
-                        Text("规则按顺序转换为隧道路由；不支持域名规则、GEOIP、RULE-SET、REJECT、策略组、Fake-IP、域名端点、本地监听和 YAML 别名。最多 128 条有效 IP 规则，每个 included/excluded 路由列表最多 128 个网段。")
+                        Text("支持从文件、粘贴或 HTTPS URL 导入（单次上限 8 MB），可保存来源链接、显示订阅流量与到期时间，并按配置的更新间隔自动更新。URL 可指向 Clash YAML、base64 订阅或分享链接。")
+                        Text("导入的配置由固定版本的 Clash 内核在隧道内执行，支持 ss、ssr、vmess、vless、trojan、hysteria、hysteria2、tuic、wireguard、socks、http 等协议，以及策略组、域名规则、GEOIP、RULE-SET 与 Fake-IP。")
+                        Text("旧版 WireGuard YAML / JSON 配置仍可导入，会自动转换为 Clash WireGuard 节点；已有旧配置会在下次刷新或连接时迁移。")
+                        Text("自动更新仅在你打开 App 或手动触发时运行，不会在后台定时联网。订阅链接与配置内容不会写入诊断。")
                     }
                     .navigationTitle("配置兼容性")
                 }
@@ -342,6 +419,29 @@ struct ContentView: View {
         case .disconnecting: return "断开中"
         @unknown default: return "未知"
         }
+    }
+}
+
+private enum ImportSummary {
+    static func bytes(_ count: UInt64) -> String {
+        ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .binary)
+    }
+
+    static func flow(_ subscription: Profile.Subscription) -> String {
+        let down = bytes(subscription.download ?? 0)
+        let up = bytes(subscription.upload ?? 0)
+        guard let total = subscription.total, total > 0 else {
+            return "↓ \(down) · ↑ \(up)"
+        }
+        let used = (subscription.download ?? 0) + (subscription.upload ?? 0)
+        return "↓ \(down) · ↑ \(up) · \(bytes(used)) / \(bytes(total))"
+    }
+
+    static func expiry(_ date: Date?) -> String {
+        guard let date else { return "长期" }
+        return date < Date()
+            ? "已到期"
+            : date.formatted(date: .abbreviated, time: .omitted)
     }
 }
 
@@ -395,7 +495,7 @@ private struct URLImport: View {
                         .autocorrectionDisabled()
                         .accessibilityIdentifier("url-field")
                 } footer: {
-                    Text("仅支持 HTTPS，上限 32 KB。链接保存在本机，仅用于手动更新，不会写入诊断。")
+                    Text("仅支持 HTTPS，上限 8 MB。支持 Clash YAML、base64 订阅和分享链接；链接保存在本机用于手动或自动更新，不会写入诊断。")
                 }
                 if let error {
                     Text(error).foregroundStyle(.orange)
@@ -453,6 +553,14 @@ private struct ImportPreview: View {
                 if let source = vpn.stagedSourceURL {
                     LabeledContent("来源", value: source.host() ?? "链接")
                 }
+                LabeledContent("类型", value: vpn.stagedEngine == .clash ? "Clash" : "WireGuard")
+                if let subscription = vpn.stagedSubscription {
+                    LabeledContent(
+                        "流量",
+                        value: ImportSummary.flow(subscription)
+                    )
+                    LabeledContent("到期", value: ImportSummary.expiry(subscription.expire))
+                }
                 if !vpn.importedRules.isEmpty {
                     LabeledContent("规则", value: "\(vpn.importedRules.count) 条")
                 }
@@ -463,23 +571,40 @@ private struct ImportPreview: View {
                         }
                     }
                 }
-                Section("选择默认节点") {
-                    Picker("节点", selection: $selectedNode) {
-                        ForEach(vpn.imported) { node in
-                            Text("\(node.name) · \(node.configuration.endpoint)").tag(node.id)
-                        }
+                if vpn.imported.isEmpty {
+                    Section("节点") {
+                        Text("节点由配置中的 proxy-providers 提供，连接时由内核加载。")
+                            .foregroundStyle(.secondary)
                     }
-                    .pickerStyle(.inline)
+                } else {
+                    Section("选择默认节点") {
+                        Picker("节点", selection: $selectedNode) {
+                            ForEach(vpn.imported) { node in
+                                Text(node.endpoint.isEmpty
+                                    ? "\(node.name) · \(node.type)"
+                                    : "\(node.name) · \(node.type) · \(node.endpoint)")
+                                    .tag(node.id)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                    }
                 }
                 if let node = vpn.imported.first(where: { $0.id == selectedNode }) {
                     Section("节点兼容性") {
-                        LabeledContent("IPv4", value: node.configuration.clientIPv4)
-                        LabeledContent("IPv6", value: node.configuration.clientIPv6)
-                        LabeledContent("DNS", value: node.configuration.dnsServers.joined(separator: ", "))
-                        Text("节点凭据保存在本机共享钥匙串；分流模式在连接页切换。")
-                            .foregroundStyle(.secondary)
-                        Text("规则模式仅使用 IP-CIDR / IP-CIDR6 / MATCH；域名、GEOIP、RULE-SET 与 REJECT 不会生效。")
-                            .foregroundStyle(.secondary)
+                        LabeledContent("协议", value: node.type)
+                        if let configuration = node.configuration {
+                            LabeledContent("IPv4", value: configuration.clientIPv4)
+                            LabeledContent("IPv6", value: configuration.clientIPv6)
+                            LabeledContent("DNS", value: configuration.dnsServers.joined(separator: ", "))
+                            Text("旧版 WireGuard 参数会转换为 Clash 配置，由内核在隧道内执行。")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            if !node.endpoint.isEmpty {
+                                LabeledContent("远端", value: node.endpoint)
+                            }
+                            Text("由 Clash 内核按配置中的代理组和规则分流，支持 ss / vmess / vless / trojan / hysteria2 / tuic / wireguard 等节点。")
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
                 if let error = vpn.importError { Text(error).foregroundStyle(.orange) }
@@ -490,10 +615,14 @@ private struct ImportPreview: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
                         let title = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
-                        if vpn.saveImport(named: title.isEmpty ? selectedNode : title, selectedNode: selectedNode) {
+                        let fallback = selectedNode.isEmpty
+                            ? (vpn.stagedEngine == .clash ? "Clash 配置" : "配置")
+                            : selectedNode
+                        if vpn.saveImport(named: title.isEmpty ? fallback : title, selectedNode: selectedNode) {
                             dismiss()
                         }
                     }
+                    .disabled(vpn.imported.isEmpty && vpn.stagedEngine != .clash)
                 }
             }
         }

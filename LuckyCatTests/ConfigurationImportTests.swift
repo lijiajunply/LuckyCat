@@ -8,8 +8,8 @@ struct ConfigurationImportTests {
         let data = Data(("proxies:\n" + node("one") + "\n" + node("two")).utf8)
         let document = try ConfigurationImport.parse(data)
         #expect(document.nodes.map(\.name) == ["one", "two"])
-        #expect(document.nodes.first?.configuration.endpoint == "[2001:db8::40]:51820")
-        #expect(document.nodes.first?.configuration.dnsServers == ["10.66.0.1", "fd66::1"])
+        #expect(document.nodes.first?.configuration?.endpoint == "[2001:db8::40]:51820")
+        #expect(document.nodes.first?.configuration?.dnsServers == ["10.66.0.1", "fd66::1"])
         #expect(document.rules.isEmpty)
         #expect(document.warnings.isEmpty)
     }

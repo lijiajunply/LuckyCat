@@ -2,6 +2,8 @@
 
 对应设计文档第 2 节和第 3–4 周开发线。首个候选选用 Clash YAML 中的单个双栈 WireGuard 节点，便于沿用标准隧道阶段的受控远端和 TCP、UDP、DNS 验收方法。其他节点类型暂未列入兼容范围。
 
+2026 年 11 月 20 日：主 App 与 `LuckyCatPacketTunnel` 已链接同一 `Clash.xcframework` 的 iOS slices。主 App 使用内核的 YAML / 分享链接转换能力实现 FlClash 风格的 URL 导入；隧道扩展通过 `ClashEngine` 启动内核并用 `PacketFlowBridge` 接入 `NEPacketTunnelFlow`。`Frameworks/Clash.xcframework` 不入库，`build.sh` 完成验证后会安装到该目录。
+
 ## 固定版本与复现
 
 | 组件 | 固定版本 |
@@ -36,7 +38,8 @@ PATH="/path/to/go1.26.11/bin:$PATH" ./ClashPrototype/build.sh
 - iOS arm64 真机目标和 iOS Simulator arm64/x86_64 目标完成静态链接。Apple Silicon Mac 与 arm64 模拟器通过 YAML 转换、单节点及错误密钥验证，并通过替身 Packet Flow 完成双栈包桥往返。
 - 同一台 Mac 上两次独立构建的 SDK 清单和三个静态库的 SHA-256 一致。一次构建生成的 `sdk.sha256` 如下。
 - 上游 Go 测试通过。受控远端互操作覆盖 auto、mips 和 gVisor 三种候选栈模式，验证双栈 TCP/UDP、DNS，以及错误对端公钥时连接失败。
-- LuckyCat 既有模拟器回归通过，共 2 项单元测试和 2 项 UI 测试。
+- LuckyCat 模拟器回归通过，共 55 项单元测试和 2 项 UI 测试；另用 macOS 探针验证 `ClashSetup` → `ClashNewService` → `startClassified` → `openTun`（socketpair）能进入 `running`。
+- 扩展目标已移除 wireguard-go 桥及其链接参数，Release 产物中只有一套 Go 运行时；旧版 WireGuard 配置转换为 Clash `wireguard` 节点。
 - iPhone 上的 VPN 授权、系统 Packet Flow 到远端的完整路径和扩展资源基线仍待验证。
 
 ```text
