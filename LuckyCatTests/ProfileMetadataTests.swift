@@ -29,6 +29,27 @@ struct ProfileMetadataTests {
         #expect(node.clientIPv4 == nil)
         #expect(node.dnsServers == nil)
         #expect(node.compatibilityNotes.count == 2)
+        #expect(library.trafficMode == .global)
+        #expect(library.selectedProfile?.sourceURL == nil)
+        #expect(library.selectedProfile?.rules == nil)
+    }
+
+    @Test func roundTripsSourceURLRulesAndMode() throws {
+        let profileID = UUID()
+        let profile = Profile(
+            id: profileID, name: "Rules", nodes: [], selectedNodeID: UUID(),
+            sourceURL: URL(string: "https://example.com/config.yaml"),
+            rules: [RoutingRule(kind: .match, value: nil, policy: .proxy)]
+        )
+        var library = ProfileLibrary(profiles: [profile], selectedProfileID: profileID)
+        library.mode = .rule
+
+        let decoded = try JSONDecoder().decode(
+            ProfileLibrary.self, from: JSONEncoder().encode(library)
+        )
+        #expect(decoded.trafficMode == .rule)
+        #expect(decoded.profiles.first?.sourceURL == profile.sourceURL)
+        #expect(decoded.profiles.first?.rules == profile.rules)
     }
 
     @Test func describesNodeCompatibility() throws {
@@ -62,6 +83,7 @@ struct ProfileMetadataTests {
         #expect(PrototypeVPN.issue(for: PrototypeError.networkSettings) == .configuration)
         #expect(PrototypeVPN.issue(for: PrototypeError.keychainUnavailable) == .permission)
         #expect(PrototypeVPN.issue(for: PrototypeError.profileStorage) == .storage)
+        #expect(PrototypeVPN.issue(for: PrototypeError.invalidRulePlan) == .configuration)
         #expect(PrototypeVPN.issue(for: CocoaError(.fileReadNoSuchFile)) == .storage)
         #expect(PrototypeVPN.issue(for: NSError(
             domain: NEVPNErrorDomain, code: NEVPNError.configurationReadWriteFailed.rawValue

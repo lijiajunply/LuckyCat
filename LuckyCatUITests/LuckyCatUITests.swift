@@ -28,8 +28,10 @@ final class LuckyCatUITests: XCTestCase {
         let name = "UI Fixture " + String(UUID().uuidString.prefix(8))
         app.launch()
 
+        XCTAssertTrue(app.segmentedControls["mode-picker"].waitForExistence(timeout: 5))
         app.tabBars.buttons["配置"].tap()
         XCTAssertTrue(app.buttons["从文件导入"].exists)
+        XCTAssertTrue(app.buttons["从 URL 导入"].exists)
         app.buttons["粘贴配置"].tap()
         let editor = app.textViews["配置内容"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
@@ -56,6 +58,19 @@ final class LuckyCatUITests: XCTestCase {
         app.buttons["delete-profile-\(name)"].tap()
         app.alerts.buttons["删除"].tap()
         XCTAssertFalse(app.staticTexts[name].exists)
+    }
+
+    @MainActor
+    func testURLImportSheet() {
+        let app = XCUIApplication()
+        app.launch()
+
+        app.tabBars.buttons["配置"].tap()
+        app.buttons["从 URL 导入"].tap()
+        XCTAssertTrue(app.textFields["url-field"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["url-download"].exists)
+        XCTAssertFalse(app.buttons["url-download"].isEnabled)
+        app.buttons["取消"].tap()
     }
 
     @MainActor

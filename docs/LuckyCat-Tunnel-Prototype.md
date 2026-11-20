@@ -100,4 +100,26 @@ xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhon
 (cd WireGuardBridge && go test -race ./...)
 ```
 
-模拟器 UI 测试不要加 `CODE_SIGNING_ALLOWED=NO`，否则测试宿主无法写入钥匙串，保存配置会失败。2026 年 11 月 20 日复跑：13 项单元测试通过，配置导入 UI 测试通过，Go race 测试通过，真机和模拟器编译通过。扩展流量上报、断线重连和真机长稳仍需在受控远端复测。
+模拟器 UI 测试不要加 `CODE_SIGNING_ALLOWED=NO`，否则测试宿主无法写入钥匙串，保存配置会失败。2026 年 11 月 20 日复跑：38 项单元测试通过，配置导入 UI 测试通过，Go race 测试通过，真机和模拟器编译通过。扩展流量上报、直连模式空路由、规则路由和真机长稳仍需在受控远端复测。
+
+## 第五阶段 URL 导入与分流模式
+
+配置页新增「从 URL 导入」。App 只接受 HTTPS 链接，使用独立、无缓存的 `URLSession` 下载，请求与资源超时 15 秒，流式读取超过 32 KB 立即取消。链接保存在 App 私有 `Profiles.json` 中，供配置页「更新配置」手动重新下载；不写入诊断，也不进入 App Group 快照或系统 VPN 配置。来源 URL 含 user/password 时拒绝导入。
+
+更新采用新修订号写入：先下载、解析并校验规则和网段上限，再写入新的快照与凭据，最后原子保存 `ProfileLibrary`。任一步失败都会删除本次新建的快照，保留原配置；节点选择按名称保留，找不到时回退到第一个节点。若系统 VPN 配置正引用被更新的配置，App 会先改写其快照修订号，再清理旧快照。
+
+连接页新增「规则 / 全局 / 直连」分段选择，设置对整个 App 生效并保存在 `Profiles.json`。默认「全局」保持原有行为，连接中不能切换。
+
+| 模式 | 系统路由 |
+| --- | --- |
+| 全局 | 安装 IPv4/IPv6 默认路由，DNS 使用隧道内服务器 |
+| 直连 | 隧道保持连接，但不安装任何 included route，也不覆盖系统 DNS；扩展不启动 wireguard-go |
+| 规则 | 读取所选配置的 `rules:`，按规则生成 included/excluded 路由；可表达的代理网段走隧道，其余直连 |
+
+规则子集只接受 `IP-CIDR`、`IP-CIDR6` 和 `MATCH`，策略 `DIRECT` 表示直连，其他策略名（包括 `PROXY` 和策略组名）表示走隧道。`REJECT`、`DOMAIN`、`GEOIP`、`RULE-SET` 等规则会跳过并在导入预览中汇总提示；`MATCH` 之后的规则忽略。每条 IP 规则只分配尚未被前面规则占用的网段，从而近似 Clash 的先匹配先生效语义。默认直连且没有任何代理网段时，计划自动退化为直连。
+
+上限为每个配置 32 KB、16 个节点、256 行规则；有效规则最多 128 条，每个 included/excluded 路由列表最多 128 个网段。规则模式没有 `MATCH` 时按代理默认处理并提示；没有任何规则时按全局处理。直连和「默认直连」的规则模式不设置隧道 DNS，避免 DNS 服务器地址不在 included routes 内。
+
+快照 schema 升为 2，新增 `routePlan`。扩展同时接受 schema 1（按全局处理）和 schema 2；连接前 App 会按当前模式和规则重写所选修订的路由计划。`providerConfiguration` 仍只包含配置标识、配置 ID 和快照修订号。
+
+真机验证需覆盖：直连模式在系统 VPN 状态为「已连接」时不捕获流量且使用系统 DNS；规则模式仅将匹配网段送入隧道；当 `MATCH` 为代理时，DIRECT 网段能正确从默认路由中排除；远端地址在规则覆盖时仍被排除；连接中切换模式被禁用。iOS 对空 `includedRoutes` 的处理需在真机确认，若系统拒绝该设置，直连模式需要改为不启动隧道。

@@ -108,6 +108,7 @@ enum PrototypeError: Int, Error, CustomNSError, LocalizedError {
     case sharedContainerUnavailable
     case activeConfiguration
     case profileStorage
+    case invalidRulePlan
 
     static let errorDomain = "com.luckyfish.LuckyCat.Tunnel"
     var errorCode: Int { rawValue }
@@ -125,6 +126,7 @@ enum PrototypeError: Int, Error, CustomNSError, LocalizedError {
         case .sharedContainerUnavailable: "无法打开共享配置目录，请核对 App Group 签名。"
         case .activeConfiguration: "请先断开 VPN，然后再删除配置。"
         case .profileStorage: "无法读写本地配置，请检查设备存储后重试。"
+        case .invalidRulePlan: "规则生成的网段过多或无效，请精简规则后重试。"
         case .simulator: "请在 iPhone 真机上验证 VPN 连接。"
         }
     }

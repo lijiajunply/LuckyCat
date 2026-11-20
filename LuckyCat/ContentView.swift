@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var page = Page.connection
     @State private var showingImporter = false
     @State private var showingPaste = false
+    @State private var showingURLImport = false
     @State private var showingPreview = false
     @State private var showingDisclosure = false
     @State private var pendingDeletion: Profile?
@@ -72,6 +73,21 @@ struct ContentView: View {
                     }
                 }
 
+                Section {
+                    Picker("分流模式", selection: modeBinding) {
+                        ForEach(TrafficMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .disabled(vpn.busy || vpn.isActive)
+                    .accessibilityIdentifier("mode-picker")
+                } header: {
+                    Text("分流模式")
+                } footer: {
+                    Text(modeExplanation)
+                }
+
                 if let issue = vpn.issue, issue != .storage {
                     Section("恢复") {
                         recovery(issue)
@@ -125,6 +141,30 @@ struct ContentView: View {
         return vpn.busy || (vpn.isActive && !vpn.canStop)
     }
 
+    private var modeBinding: Binding<TrafficMode> {
+        Binding(
+            get: { vpn.library.trafficMode },
+            set: { vpn.setMode($0) }
+        )
+    }
+
+    private var modeExplanation: String {
+        let text: String
+        switch vpn.library.trafficMode {
+        case .rule:
+            if (vpn.library.selectedProfile?.rules ?? []).isEmpty {
+                text = "当前配置没有 IP 规则，规则模式将按全局处理。"
+            } else {
+                text = "按配置中的 IP-CIDR / IP-CIDR6 / MATCH 规则分流；不支持域名规则。"
+            }
+        case .global:
+            text = "所有流量都通过当前 WireGuard 节点。"
+        case .direct:
+            text = "VPN 保持连接，但不接管任何流量，系统 DNS 保持不变。"
+        }
+        return vpn.isActive ? text + " 断开后可切换模式。" : text
+    }
+
     @ViewBuilder private func recovery(_ issue: PrototypeVPN.Issue) -> some View {
         switch issue {
         case .permission:
@@ -161,6 +201,11 @@ struct ContentView: View {
                 Section {
                     Button("从文件导入", systemImage: "document.badge.plus") { showingImporter = true }
                     Button("粘贴配置", systemImage: "clipboard") { showingPaste = true }
+                    Button("从 URL 导入", systemImage: "link") {
+                        vpn.discardImport()
+                        showingURLImport = true
+                    }
+                    .accessibilityIdentifier("url-import")
                     if let error = vpn.importError { Text(error).foregroundStyle(.orange) }
                     feedback
                 }
@@ -186,6 +231,23 @@ struct ContentView: View {
                         if vpn.library.selectedProfileID != profile.id {
                             Button("设为当前") { vpn.select(profileID: profile.id) }
                                 .disabled(vpn.busy || vpn.isActive)
+                        }
+                        if let sourceURL = profile.sourceURL {
+                            LabeledContent("来源", value: sourceURL.host() ?? "链接")
+                            Button {
+                                Task { await vpn.update(profile) }
+                            } label: {
+                                if vpn.updatingProfileID == profile.id {
+                                    HStack {
+                                        ProgressView()
+                                        Text("正在更新…")
+                                    }
+                                } else {
+                                    Label("更新配置", systemImage: "arrow.clockwise")
+                                }
+                            }
+                            .accessibilityIdentifier("update-profile-\(profile.name)")
+                            .disabled(vpn.busy || vpn.isActive)
                         }
                         NavigationLink("兼容提示") {
                             ProfileCompatibility(profile: profile)
@@ -219,6 +281,11 @@ struct ContentView: View {
                     return vpn.imported.isEmpty ? vpn.importError : nil
                 }
             }
+            .sheet(isPresented: $showingURLImport, onDismiss: {
+                showingPreview = !vpn.imported.isEmpty
+            }) {
+                URLImport(vpn: vpn)
+            }
             .sheet(isPresented: $showingPreview, onDismiss: vpn.discardImport) {
                 if let first = vpn.imported.first {
                     ImportPreview(vpn: vpn, selectedNode: first.id)
@@ -245,8 +312,9 @@ struct ContentView: View {
                 }
                 NavigationLink("配置兼容性") {
                     List {
-                        Text("支持 Clash YAML 的 proxies 节点列表，以及原 WireGuard 测试 JSON。节点需使用 WireGuard、IP 字面量远端、双栈客户端地址和 1–3 个隧道内 DNS 地址。")
-                        Text("YAML 每个节点使用 name、type、server、port、ip、ipv6、private-key、public-key 和 dns。dns 使用同一行的列表，udp 可省略或填 true。暂不支持规则、策略组、域名端点或 YAML 别名。")
+                        Text("支持从文件、粘贴或 HTTPS URL 导入（单次下载上限 32 KB），可保存来源链接并手动更新。节点需使用 WireGuard、IP 字面量远端、双栈客户端地址和 1–3 个隧道内 DNS 地址。")
+                        Text("分流模式：全局将全部流量送入隧道；直连不接管流量并使用系统 DNS；规则模式支持 Clash rules 中的 IP-CIDR、IP-CIDR6 与 MATCH，DIRECT 走直连，其他策略名走隧道。")
+                        Text("规则按顺序转换为隧道路由；不支持域名规则、GEOIP、RULE-SET、REJECT、策略组、Fake-IP、域名端点、本地监听和 YAML 别名。最多 128 条有效 IP 规则，每个 included/excluded 路由列表最多 128 个网段。")
                     }
                     .navigationTitle("配置兼容性")
                 }
@@ -309,16 +377,92 @@ private struct PasteConfiguration: View {
     }
 }
 
+private struct URLImport: View {
+    @Environment(\.dismiss) private var dismiss
+    let vpn: PrototypeVPN
+    @State private var text = ""
+    @State private var loading = false
+    @State private var error: String?
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("https://example.com/config.yaml", text: $text)
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("url-field")
+                } footer: {
+                    Text("仅支持 HTTPS，上限 32 KB。链接保存在本机，仅用于手动更新，不会写入诊断。")
+                }
+                if let error {
+                    Text(error).foregroundStyle(.orange)
+                }
+                if loading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("正在下载…")
+                    }
+                }
+            }
+            .navigationTitle("从 URL 导入")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("下载并预览") {
+                        Task {
+                            loading = true
+                            error = nil
+                            let success = await vpn.importURL(text)
+                            loading = false
+                            if success {
+                                dismiss()
+                            } else {
+                                error = vpn.importError
+                            }
+                        }
+                    }
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || loading)
+                    .accessibilityIdentifier("url-download")
+                }
+            }
+        }
+    }
+}
+
 private struct ImportPreview: View {
     @Environment(\.dismiss) private var dismiss
     let vpn: PrototypeVPN
     @State var selectedNode: String
-    @State private var name = ""
+    @State private var name: String
+
+    init(vpn: PrototypeVPN, selectedNode: String) {
+        self.vpn = vpn
+        _selectedNode = State(initialValue: selectedNode)
+        _name = State(initialValue: vpn.defaultImportName)
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 TextField("配置名称", text: $name)
+                if let source = vpn.stagedSourceURL {
+                    LabeledContent("来源", value: source.host() ?? "链接")
+                }
+                if !vpn.importedRules.isEmpty {
+                    LabeledContent("规则", value: "\(vpn.importedRules.count) 条")
+                }
+                if !vpn.importWarnings.isEmpty {
+                    Section("导入提示") {
+                        ForEach(vpn.importWarnings, id: \.self) { warning in
+                            Text(warning).foregroundStyle(.orange)
+                        }
+                    }
+                }
                 Section("选择默认节点") {
                     Picker("节点", selection: $selectedNode) {
                         ForEach(vpn.imported) { node in
@@ -332,9 +476,9 @@ private struct ImportPreview: View {
                         LabeledContent("IPv4", value: node.configuration.clientIPv4)
                         LabeledContent("IPv6", value: node.configuration.clientIPv6)
                         LabeledContent("DNS", value: node.configuration.dnsServers.joined(separator: ", "))
-                        Text("使用双栈默认路由；节点凭据保存在本机共享钥匙串。")
+                        Text("节点凭据保存在本机共享钥匙串；分流模式在连接页切换。")
                             .foregroundStyle(.secondary)
-                        Text("不支持规则、策略组、Fake-IP、域名端点、本地监听和 YAML 别名。")
+                        Text("规则模式仅使用 IP-CIDR / IP-CIDR6 / MATCH；域名、GEOIP、RULE-SET 与 REJECT 不会生效。")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -412,6 +556,16 @@ private struct ProfileCompatibility: View {
             }
         }
         .navigationTitle("兼容提示")
+    }
+}
+
+private extension TrafficMode {
+    var title: String {
+        switch self {
+        case .rule: "规则"
+        case .global: "全局"
+        case .direct: "直连"
+        }
     }
 }
 

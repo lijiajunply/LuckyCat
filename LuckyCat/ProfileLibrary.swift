@@ -32,6 +32,8 @@ struct Profile: Codable, Identifiable {
     let name: String
     let nodes: [Node]
     var selectedNodeID: UUID
+    var sourceURL: URL? = nil
+    var rules: [RoutingRule]? = nil
 
     var selectedNode: Node? { nodes.first { $0.id == selectedNodeID } }
 }
@@ -39,8 +41,11 @@ struct Profile: Codable, Identifiable {
 struct ProfileLibrary: Codable {
     var profiles: [Profile] = []
     var selectedProfileID: UUID?
+    var mode: TrafficMode? = nil
 
     var selectedProfile: Profile? { profiles.first { $0.id == selectedProfileID } }
+
+    var trafficMode: TrafficMode { mode ?? .global }
 
     static func load() throws -> Self {
         do {

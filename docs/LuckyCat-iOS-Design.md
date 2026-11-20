@@ -12,7 +12,8 @@ LuckyCat 是面向自带网络配置的用户的原生 iOS 客户端。目标是
 | 连接体验 | 首页显示当前配置、节点与系统 VPN 状态。用户手动连接、断开，或选择节点后显式重连 |
 | 流量模式 | 对纳入系统 VPN 路由的 IPv4、IPv6 和 DNS 流量，按已验证的远端隧道路径处理。应用界面说明系统路由例外和断开后的行为 |
 | 数据管理 | 本地保存配置和最近选择，可删除配置。设置提供隐私政策和脱敏的本地诊断 |
-| 后续范围 | 订阅自动更新、完整策略组与规则分流、自动选路、按需连接、macOS 和 visionOS |
+| URL 导入与分流 | 从 HTTPS 链接导入并手动更新；规则 / 全局 / 直连三种模式，规则模式支持 IP-CIDR、IP-CIDR6 与 MATCH |
+| 后续范围 | 订阅自动更新、完整策略组与域名级规则分流、自动选路、按需连接、macOS 和 visionOS |
 
 首版以 iPhone 为发布验证重点。默认采用用户自备的远端节点，App 内无账号、代理销售、广告和分析 SDK。测试环境使用团队控制的短期测试配置。能否使用任意订阅、协议或服务器，取决于最终公布的兼容列表。
 
@@ -65,7 +66,7 @@ flowchart LR
 
 - 标准隧道原型用受控远端验证 IPv4、IPv6、TCP、UDP、隧道内 DNS 与出站地址。测试需核对远端确实收到隧道包，并验证连接远端所用的传输不会被自己的隧道路由再次捕获。
 - Clash 内核原型逐项记录入口、转发、远端终止与回包路径。即使应用能访问网络，也要判断实际数据路径是否符合 TN3120 对远端隧道的预期。普通远程代理出站的适用性需按具体架构评估。发布前将数据流与用途如实写入审核说明。
-- 首版使用与远端隧道关联的 DNS 设置，验证双栈默认路由及 Apple 定义的系统例外。导入含本地 `DIRECT`、过滤性 `REJECT`、Fake-IP、全系统 DNS 截获或本地监听配置时，按首版白名单提示不支持。未来若支持特定目的地址的路由范围，评估系统的 `includedRoutes` 与适用部署方式。
+- 首版使用与远端隧道关联的 DNS 设置，验证双栈默认路由及 Apple 定义的系统例外。规则模式把 `IP-CIDR`、`IP-CIDR6` 与 `MATCH` 的 `DIRECT` / 代理策略转换为隧道的 `includedRoutes` 与 `excludedRoutes`；域名规则、过滤性 `REJECT`、Fake-IP、全系统 DNS 截获或本地监听配置仍按白名单提示不支持。其余特定目的地址的路由范围沿用系统 `includedRoutes` 方案并在真机验证。
 - 连接后的意外断链进入有界重连，重连期间检查是否发生意外出站。无法恢复时停止扩展并明确提示系统可能恢复普通网络访问。计划阶段不承诺系统级断网保护。 [TN3120](https://developer.apple.com/documentation/technotes/tn3120-expected-use-cases-for-network-extension-packet-tunnel-providers) · [Apple VPN 路由文档](https://developer.apple.com/documentation/networkextension/routing-your-vpn-network-traffic)
 
 ## 4. 配置、连接与界面设计

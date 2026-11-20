@@ -21,6 +21,10 @@ final class PrototypeVPN {
     private(set) var busy = false
     private(set) var requestingConnection = false
     private(set) var imported: [ImportedNode] = []
+    private(set) var importedRules: [RoutingRule] = []
+    private(set) var importWarnings: [String] = []
+    private(set) var stagedSourceURL: URL?
+    private(set) var updatingProfileID: UUID?
     private(set) var library = ProfileLibrary()
     let diagnostics = DiagnosticLog()
     private var libraryLoaded = false
@@ -60,18 +64,64 @@ final class PrototypeVPN {
         }
     }
 
-    func stage(_ data: Data) {
+    func stage(_ data: Data, sourceURL: URL? = nil) {
         guard !busy, !isActive else { return }
-        discardImport()
         do {
-            imported = try ConfigurationImport.parse(data)
+            apply(try ConfigurationImport.parse(data), sourceURL: sourceURL)
         } catch {
-            importError = error.localizedDescription
+            discardImport()
+            importError = Self.describeImport(error)
+        }
+    }
+
+    func importURL(_ text: String) async -> Bool {
+        guard !busy else {
+            importError = "正在处理其他操作，请稍后重试。"
+            return false
+        }
+        guard !isActive else {
+            importError = "请先断开 VPN，再导入配置。"
+            return false
+        }
+        guard let url = RemoteImport.url(from: text) else {
+            importError = "请输入有效的 HTTPS 配置链接。"
+            return false
+        }
+        discardImport()
+        busy = true
+        defer { busy = false }
+        do {
+            let data = try await RemoteImport.fetch(url)
+            let document = try ConfigurationImport.parse(data)
+            _ = try RoutePlan.make(mode: .rule, rules: document.rules)
+            apply(document, sourceURL: url)
+            return true
+        } catch {
+            importError = Self.describeImport(error)
+            return false
         }
     }
 
     func discardImport() {
         imported = []
+        importedRules = []
+        importWarnings = []
+        stagedSourceURL = nil
+        importError = nil
+    }
+
+    var defaultImportName: String {
+        guard let url = stagedSourceURL else { return "" }
+        let file = url.deletingPathExtension().lastPathComponent
+        let candidate = file.isEmpty ? (url.host() ?? "") : file
+        return String(candidate.prefix(80))
+    }
+
+    private func apply(_ document: ImportedConfiguration, sourceURL: URL?) {
+        imported = document.nodes
+        importedRules = document.rules
+        importWarnings = document.warnings
+        stagedSourceURL = sourceURL
         importError = nil
     }
 
@@ -81,12 +131,22 @@ final class PrototypeVPN {
             return false
         }
         guard !busy, !isActive, !imported.isEmpty else { return false }
+        let validationPlan: RoutePlan
+        do {
+            validationPlan = try RoutePlan.make(mode: .rule, rules: importedRules)
+        } catch {
+            importError = Self.describeImport(error)
+            return false
+        }
+        let plan = (try? RoutePlan.make(mode: library.trafficMode, rules: importedRules)) ?? validationPlan
         let profileID = UUID()
         var nodes: [Profile.Node] = []
         do {
             for node in imported {
                 let revision = UUID()
-                try TunnelSnapshot.save(node.configuration, profileID: profileID, revision: revision)
+                try TunnelSnapshot.save(
+                    node.configuration, profileID: profileID, revision: revision, routePlan: plan
+                )
                 nodes.append(Profile.Node(
                     id: revision, name: node.name, endpoint: node.configuration.endpoint,
                     clientIPv4: node.configuration.clientIPv4,
@@ -97,7 +157,10 @@ final class PrototypeVPN {
             guard let selected = nodes.first(where: { $0.name == selectedNode }) else {
                 throw PrototypeError.missingConfiguration
             }
-            let profile = Profile(id: profileID, name: name, nodes: nodes, selectedNodeID: selected.id)
+            let profile = Profile(
+                id: profileID, name: name, nodes: nodes, selectedNodeID: selected.id,
+                sourceURL: stagedSourceURL, rules: importedRules.isEmpty ? nil : importedRules
+            )
             var updated = library
             updated.profiles.append(profile)
             updated.selectedProfileID = profileID
@@ -109,8 +172,90 @@ final class PrototypeVPN {
             return true
         } catch {
             for node in nodes { TunnelSnapshot.remove(revision: node.id) }
-            importError = Self.describe(error)
+            importError = Self.describeImport(error)
             return false
+        }
+    }
+
+    func setMode(_ mode: TrafficMode) {
+        guard libraryLoaded, !busy, !isActive, library.trafficMode != mode else { return }
+        var updated = library
+        updated.mode = mode
+        do {
+            try updated.save()
+            library = updated
+            message = nil
+            issue = nil
+            record("切换分流模式")
+        } catch {
+            present(error)
+        }
+    }
+
+    func update(_ profile: Profile) async {
+        guard libraryLoaded, !busy, !isActive,
+              let sourceURL = profile.sourceURL,
+              let index = library.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
+        busy = true
+        updatingProfileID = profile.id
+        defer {
+            busy = false
+            updatingProfileID = nil
+        }
+        var created: [Profile.Node] = []
+        do {
+            let data = try await RemoteImport.fetch(sourceURL)
+            let document = try ConfigurationImport.parse(data)
+            _ = try RoutePlan.make(mode: .rule, rules: document.rules)
+            let plan = try RoutePlan.make(mode: library.trafficMode, rules: document.rules)
+
+            for node in document.nodes {
+                let revision = UUID()
+                try TunnelSnapshot.save(
+                    node.configuration, profileID: profile.id, revision: revision, routePlan: plan
+                )
+                created.append(Profile.Node(
+                    id: revision, name: node.name, endpoint: node.configuration.endpoint,
+                    clientIPv4: node.configuration.clientIPv4,
+                    clientIPv6: node.configuration.clientIPv6,
+                    dnsServers: node.configuration.dnsServers
+                ))
+            }
+            guard let selected = created.first(where: { $0.name == profile.selectedNode?.name }) ?? created.first else {
+                throw PrototypeError.missingConfiguration
+            }
+            var updated = library
+            updated.profiles[index] = Profile(
+                id: profile.id, name: profile.name, nodes: created, selectedNodeID: selected.id,
+                sourceURL: sourceURL, rules: document.rules.isEmpty ? nil : document.rules
+            )
+            try updated.save()
+            library = updated
+
+            // Keep the old revisions when the system manager still points at this profile
+            // but cannot be rewritten; otherwise a Settings-initiated start would fail.
+            var canRemoveOldRevisions = true
+            #if !targetEnvironment(simulator)
+            do {
+                if let manager = try await loadManager(),
+                   let provider = manager.protocolConfiguration as? NETunnelProviderProtocol,
+                   provider.providerConfiguration?[TunnelSnapshot.profileKey] as? String == profile.id.uuidString {
+                    _ = try await save(profile: updated.profiles[index], node: selected, to: manager)
+                }
+            } catch {
+                canRemoveOldRevisions = false
+            }
+            #endif
+            if canRemoveOldRevisions {
+                for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
+            }
+            message = document.warnings.isEmpty ? nil : document.warnings.joined(separator: " ")
+            issue = nil
+            record("配置已更新")
+        } catch {
+            for node in created { TunnelSnapshot.remove(revision: node.id) }
+            message = Self.describeImport(error)
+            issue = .configuration
         }
     }
 
@@ -219,6 +364,8 @@ final class PrototypeVPN {
             let selected: NETunnelProviderManager
             if let profile = library.selectedProfile, let node = profile.selectedNode {
                 _ = try TunnelSnapshot.load(profileID: profile.id, revision: node.id)
+                let plan = try RoutePlan.make(mode: library.trafficMode, rules: profile.rules ?? [])
+                try TunnelSnapshot.saveRoutePlan(plan, profileID: profile.id, revision: node.id)
                 selected = try await save(profile: profile, node: node, to: existing ?? NETunnelProviderManager())
             } else if let existing, Self.legacyRevision(of: existing) != nil {
                 selected = existing
@@ -444,7 +591,7 @@ final class PrototypeVPN {
             case .keychainUnavailable, .sharedContainerUnavailable:
                 return .permission
             case .missingConfiguration, .engineStartup, .networkSettings,
-                 .duplicateConfiguration, .activeConfiguration:
+                 .duplicateConfiguration, .activeConfiguration, .invalidRulePlan:
                 return .configuration
             case .handshakeTimeout:
                 return .remote
@@ -491,6 +638,13 @@ final class PrototypeVPN {
     private static func providerIdentifier() throws -> String {
         guard let app = Bundle.main.bundleIdentifier else { throw PrototypeError.missingConfiguration }
         return app + ".PacketTunnel"
+    }
+
+    private static func describeImport(_ error: Error) -> String {
+        if let localized = error as? LocalizedError, let description = localized.errorDescription {
+            return description
+        }
+        return "无法读取配置。"
     }
 
     private static func describe(_ error: Error) -> String {
