@@ -23,14 +23,13 @@ final class LuckyCatUITests: XCTestCase {
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testShowsPrototypeImportOnLaunch() {
         let app = XCUIApplication()
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
-        // XCUIAutomation Documentation
-        // https://developer.apple.com/documentation/xcuiautomation
+        XCTAssertTrue(app.staticTexts["WireGuard 测试隧道"].exists)
+        XCTAssertTrue(app.buttons["导入测试配置"].isEnabled)
+        XCTAssertFalse(app.buttons["连接"].isEnabled)
     }
 
     @MainActor
