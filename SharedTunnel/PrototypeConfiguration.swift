@@ -52,7 +52,7 @@ struct PrototypeConfiguration: Codable {
         ].joined(separator: "\n")
     }
 
-    private func validate() throws {
+    func validate() throws {
         guard Self.isIP(endpointAddress),
               !endpointAddress.contains("%") else {
             throw PrototypeError.invalidField("endpointAddress")
@@ -105,6 +105,9 @@ enum PrototypeError: Int, Error, CustomNSError, LocalizedError {
     case startCancelled
     case duplicateConfiguration
     case simulator
+    case sharedContainerUnavailable
+    case activeConfiguration
+    case profileStorage
 
     static let errorDomain = "com.luckyfish.LuckyCat.Tunnel"
     var errorCode: Int { rawValue }
@@ -119,6 +122,9 @@ enum PrototypeError: Int, Error, CustomNSError, LocalizedError {
         case .handshakeTimeout: "WireGuard 握手超时，请核对远端地址、UDP 端口和密钥。"
         case .startCancelled: "连接启动已取消。"
         case .duplicateConfiguration: "发现多个 LuckyCat VPN 配置，请在系统设置中保留一个。"
+        case .sharedContainerUnavailable: "无法打开共享配置目录，请核对 App Group 签名。"
+        case .activeConfiguration: "请先断开 VPN，然后再删除配置。"
+        case .profileStorage: "无法读写本地配置，请检查设备存储后重试。"
         case .simulator: "请在 iPhone 真机上验证 VPN 连接。"
         }
     }
@@ -139,23 +145,27 @@ enum PrototypeStore {
     static let configurationIdentifier = "wireguard-baseline-v1"
     private static let service = "com.luckyfish.LuckyCat.WireGuardPrototype"
 
-    static func save(_ configuration: PrototypeConfiguration, revision: UUID) throws {
+    static func save<Value: Encodable>(_ value: Value, revision: UUID) throws {
         var attributes = try query(for: revision)
         attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        attributes[kSecValueData as String] = try JSONEncoder().encode(configuration)
+        attributes[kSecValueData as String] = try JSONEncoder().encode(value)
         guard SecItemAdd(attributes as CFDictionary, nil) == errSecSuccess else {
             throw PrototypeError.keychainUnavailable
         }
     }
 
     static func load(revision: UUID) throws -> PrototypeConfiguration {
+        try PrototypeConfiguration.decode(data(for: revision))
+    }
+
+    static func data(for revision: UUID) throws -> Data {
         var attributes = try query(for: revision)
         attributes[kSecReturnData as String] = true
         var item: CFTypeRef?
         let status = SecItemCopyMatching(attributes as CFDictionary, &item)
         if status == errSecItemNotFound { throw PrototypeError.missingConfiguration }
         guard status == errSecSuccess, let data = item as? Data else { throw PrototypeError.keychainUnavailable }
-        return try PrototypeConfiguration.decode(data)
+        return data
     }
 
     static func remove(revision: UUID) {
@@ -166,11 +176,14 @@ enum PrototypeStore {
     private static func query(for revision: UUID) throws -> [String: Any] {
         guard let group = Bundle.main.object(forInfoDictionaryKey: "PrototypeKeychainGroup") as? String,
               !group.isEmpty else { throw PrototypeError.keychainUnavailable }
-        return [
+        var attributes: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: revision.uuidString,
-            kSecAttrAccessGroup as String: group
+            kSecAttrAccount as String: revision.uuidString
         ]
+        #if !targetEnvironment(simulator)
+        attributes[kSecAttrAccessGroup as String] = group
+        #endif
+        return attributes
     }
 }

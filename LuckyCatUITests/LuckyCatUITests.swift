@@ -23,13 +23,39 @@ final class LuckyCatUITests: XCTestCase {
     }
 
     @MainActor
-    func testShowsPrototypeImportOnLaunch() {
+    func testPastePreviewSaveAndDeleteProfile() {
         let app = XCUIApplication()
+        let name = "UI Fixture " + String(UUID().uuidString.prefix(8))
         app.launch()
 
-        XCTAssertTrue(app.staticTexts["WireGuard 测试隧道"].exists)
-        XCTAssertTrue(app.buttons["导入测试配置"].isEnabled)
-        XCTAssertFalse(app.buttons["连接"].isEnabled)
+        app.tabBars.buttons["配置"].tap()
+        XCTAssertTrue(app.buttons["从文件导入"].exists)
+        app.buttons["粘贴配置"].tap()
+        let editor = app.textViews["配置内容"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.tap()
+        let privateKey = Data(repeating: 1, count: 32).base64EncodedString()
+        let publicKey = Data(repeating: 2, count: 32).base64EncodedString()
+        editor.typeText("""
+        {"endpointAddress":"192.0.2.40","endpointPort":51820,"clientIPv4":"10.66.0.2","clientIPv6":"fd66::2","dnsServers":["10.66.0.1"],"privateKey":"\(privateKey)","peerPublicKey":"\(publicKey)"}
+        """)
+        app.buttons["预览"].tap()
+
+        let nameField = app.textFields["配置名称"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 10))
+        nameField.tap()
+        nameField.typeText(name)
+        app.buttons["保存"].tap()
+        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+
+        XCTAssertTrue(app.buttons["connect-vpn"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["配置"].tap()
+        XCTAssertTrue(app.staticTexts[name].exists)
+        app.buttons["delete-profile-\(name)"].tap()
+        app.alerts.buttons["删除"].tap()
+        XCTAssertFalse(app.staticTexts[name].exists)
     }
 
     @MainActor

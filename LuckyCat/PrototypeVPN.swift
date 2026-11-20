@@ -7,20 +7,26 @@ final class PrototypeVPN {
     private(set) var status: NEVPNStatus = .invalid
     private(set) var busy = false
     private(set) var requestingConnection = false
-    private(set) var imported: PrototypeConfiguration?
+    private(set) var imported: [ImportedNode] = []
+    private(set) var library = ProfileLibrary()
+    private(set) var diagnostics: [String] = []
+    private var libraryLoaded = false
+    private(set) var importError: String?
     private(set) var savedEndpoint: String?
     var message: String?
 
     private var manager: NETunnelProviderManager?
     private var connectionRequest: UUID?
     private var statusChangedAt = UUID()
+    private var stopRequest: UUID?
+    private var diagnosticRequest: UUID?
 
     var isActive: Bool {
-        requestingConnection || [.connecting, .connected, .reasserting, .disconnecting].contains(status)
+        requestingConnection || stopRequest != nil || [.connecting, .connected, .reasserting, .disconnecting].contains(status)
     }
 
     var canStop: Bool {
-        isActive && status != .disconnecting
+        isActive && stopRequest == nil && status != .disconnecting
     }
 
     func importFile(_ url: URL) {
@@ -30,23 +36,123 @@ final class PrototypeVPN {
         do {
             let file = try FileHandle(forReadingFrom: url)
             defer { try? file.close() }
-            let data = try file.read(upToCount: PrototypeConfiguration.maximumFileSize + 1) ?? Data()
-            imported = try PrototypeConfiguration.decode(data)
-            message = nil
-        } catch let error as PrototypeError.InvalidField {
-            message = error.localizedDescription
+            stage(try file.read(upToCount: ConfigurationImport.maximumFileSize + 1) ?? Data())
         } catch {
-            message = "无法读取测试配置文件。"
+            importError = "无法读取配置文件。"
+        }
+    }
+
+    func stage(_ data: Data) {
+        guard !busy, !isActive else { return }
+        discardImport()
+        do {
+            imported = try ConfigurationImport.parse(data)
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
+
+    func discardImport() {
+        imported = []
+        importError = nil
+    }
+
+    func saveImport(named name: String, selectedNode: String) -> Bool {
+        guard libraryLoaded else {
+            importError = PrototypeError.profileStorage.localizedDescription
+            return false
+        }
+        guard !busy, !isActive, !imported.isEmpty else { return false }
+        let profileID = UUID()
+        var nodes: [Profile.Node] = []
+        do {
+            for node in imported {
+                let revision = UUID()
+                try TunnelSnapshot.save(node.configuration, profileID: profileID, revision: revision)
+                nodes.append(Profile.Node(id: revision, name: node.name, endpoint: node.configuration.endpoint))
+            }
+            guard let selected = nodes.first(where: { $0.name == selectedNode }) else {
+                throw PrototypeError.missingConfiguration
+            }
+            let profile = Profile(id: profileID, name: name, nodes: nodes, selectedNodeID: selected.id)
+            var updated = library
+            updated.profiles.append(profile)
+            updated.selectedProfileID = profileID
+            try updated.save()
+            library = updated
+            discardImport()
+            message = nil
+            record("配置已保存")
+            return true
+        } catch {
+            for node in nodes { TunnelSnapshot.remove(revision: node.id) }
+            importError = Self.describe(error)
+            return false
+        }
+    }
+
+    func select(profileID: UUID, nodeID: UUID) {
+        guard libraryLoaded, !busy, !isActive,
+              let index = library.profiles.firstIndex(where: { $0.id == profileID }),
+              library.profiles[index].nodes.contains(where: { $0.id == nodeID }) else { return }
+        var updated = library
+        updated.selectedProfileID = profileID
+        updated.profiles[index].selectedNodeID = nodeID
+        do {
+            try updated.save()
+            library = updated
+            message = nil
+        } catch {
+            message = Self.describe(error)
+        }
+    }
+
+    func remove(_ profile: Profile) async {
+        guard libraryLoaded, !busy, !isActive, library.profiles.contains(where: { $0.id == profile.id }) else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            #if !targetEnvironment(simulator)
+            adopt(try await loadManager())
+            guard !isActive else { throw PrototypeError.activeConfiguration }
+            if let manager,
+               let values = (manager.protocolConfiguration as? NETunnelProviderProtocol)?.providerConfiguration,
+               values[TunnelSnapshot.profileKey] as? String == profile.id.uuidString {
+                try await manager.removeFromPreferences()
+                adopt(nil)
+            }
+            #endif
+            var updated = library
+            updated.profiles.removeAll { $0.id == profile.id }
+            if updated.selectedProfileID == profile.id {
+                updated.selectedProfileID = updated.profiles.first?.id
+            }
+            try updated.save()
+            library = updated
+            for node in profile.nodes { TunnelSnapshot.remove(revision: node.id) }
+            message = nil
+            record("配置已删除")
+        } catch {
+            message = Self.describe(error)
         }
     }
 
     func refresh() async {
+        if !libraryLoaded {
+            do {
+                library = try ProfileLibrary.load()
+                libraryLoaded = true
+            } catch {
+                message = "无法读取本地配置列表。"
+            }
+        }
         #if !targetEnvironment(simulator)
         guard !busy, !requestingConnection else { return }
         busy = true
         defer { busy = false }
         do {
             adopt(try await loadManager())
+            if status == .connected { queryExtensionStatus() }
         } catch {
             message = Self.describe(error)
         }
@@ -55,6 +161,7 @@ final class PrototypeVPN {
 
     func connect() async {
         #if targetEnvironment(simulator)
+        record("模拟器连接请求")
         message = PrototypeError.simulator.localizedDescription
         #else
         guard !busy, !isActive else { return }
@@ -67,10 +174,10 @@ final class PrototypeVPN {
             adopt(existing)
             guard !isActive else { return }
             let selected: NETunnelProviderManager
-            if let imported {
-                selected = try await save(imported, to: existing ?? NETunnelProviderManager())
-                self.imported = nil
-            } else if let existing {
+            if let profile = library.selectedProfile, let node = profile.selectedNode {
+                _ = try TunnelSnapshot.load(profileID: profile.id, revision: node.id)
+                selected = try await save(profile: profile, node: node, to: existing ?? NETunnelProviderManager())
+            } else if let existing, Self.legacyRevision(of: existing) != nil {
                 selected = existing
                 if !selected.isEnabled {
                     selected.isEnabled = true
@@ -82,8 +189,8 @@ final class PrototypeVPN {
             }
 
             adopt(selected)
-            guard try Self.revision(of: selected).map({ try PrototypeStore.load(revision: $0) }) != nil else {
-                throw PrototypeError.missingConfiguration
+            if let legacyRevision = Self.legacyRevision(of: selected) {
+                _ = try PrototypeStore.load(revision: legacyRevision)
             }
             guard let session = selected.connection as? NETunnelProviderSession else {
                 throw PrototypeError.missingConfiguration
@@ -94,6 +201,7 @@ final class PrototypeVPN {
             requestingConnection = true
             do {
                 try session.startTunnel(options: nil)
+                record("发起连接")
             } catch {
                 clearConnectionRequest()
                 throw error
@@ -118,9 +226,19 @@ final class PrototypeVPN {
 
     func disconnect() {
         guard !busy, canStop else { return }
+        guard let connection = manager?.connection else { return }
         clearConnectionRequest()
         message = nil
-        manager?.connection.stopVPNTunnel()
+        let request = UUID()
+        stopRequest = request
+        connection.stopVPNTunnel()
+        record("请求断开")
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard let self, self.stopRequest == request else { return }
+            self.stopRequest = nil
+            await self.updateStatus()
+        }
     }
 
     func updateStatus() async {
@@ -130,6 +248,14 @@ final class PrototypeVPN {
         if current != previous {
             statusChangedAt = UUID()
             status = current
+        }
+        if [.disconnected, .disconnecting, .invalid].contains(current) {
+            stopRequest = nil
+        }
+        if current != previous {
+            record("系统 VPN 状态 \(current.rawValue)")
+            diagnosticRequest = nil
+            if current == .connected { queryExtensionStatus() }
         }
         let update = statusChangedAt
         if current == .connecting || current == .connected || current == .reasserting {
@@ -145,6 +271,41 @@ final class PrototypeVPN {
         }
         guard statusChangedAt == update, manager?.connection === connection, let error else { return }
         message = Self.describe(error)
+        record("断开错误码 \(error.code)")
+    }
+
+    private func queryExtensionStatus() {
+        guard diagnosticRequest == nil, let session = manager?.connection as? NETunnelProviderSession else { return }
+        let id = UUID()
+        diagnosticRequest = id
+        do {
+            let request = TunnelStatusMessage.Request(version: TunnelStatusMessage.version, id: id)
+            let data = try JSONEncoder().encode(request)
+            try session.sendProviderMessage(data) { [weak self] response in
+                Task { @MainActor [weak self] in
+                    let reply = response.flatMap { try? JSONDecoder().decode(TunnelStatusMessage.Reply.self, from: $0) }
+                    let ready = reply.flatMap { $0.id == id && $0.version == TunnelStatusMessage.version ? $0.ready : nil }
+                    self?.completeDiagnostic(id, ready: ready)
+                }
+            }
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                self?.completeDiagnostic(id, ready: nil)
+            }
+        } catch {
+            completeDiagnostic(id, ready: nil)
+        }
+    }
+
+    private func completeDiagnostic(_ id: UUID, ready: Bool?) {
+        guard diagnosticRequest == id else { return }
+        diagnosticRequest = nil
+        guard status == .connected else { return }
+        switch ready {
+        case true?: record("扩展已就绪")
+        case false?: record("扩展未就绪")
+        case nil: record("扩展诊断暂不可用")
+        }
     }
 
     private func loadManager() async throws -> NETunnelProviderManager? {
@@ -160,30 +321,24 @@ final class PrototypeVPN {
     }
 
     private func save(
-        _ configuration: PrototypeConfiguration,
+        profile: Profile,
+        node: Profile.Node,
         to manager: NETunnelProviderManager
     ) async throws -> NETunnelProviderManager {
-        let previousRevision = Self.revision(of: manager)
-        let revision = UUID()
+        let previousRevision = Self.legacyRevision(of: manager)
         let provider = NETunnelProviderProtocol()
         provider.providerBundleIdentifier = try Self.providerIdentifier()
-        provider.serverAddress = configuration.endpoint
+        provider.serverAddress = "LuckyCat"
         provider.providerConfiguration = [
             PrototypeStore.configurationIdentifierKey: PrototypeStore.configurationIdentifier,
-            PrototypeStore.revisionKey: revision.uuidString
+            TunnelSnapshot.profileKey: profile.id.uuidString,
+            TunnelSnapshot.revisionKey: node.id.uuidString
         ]
-
-        try PrototypeStore.save(configuration, revision: revision)
         manager.protocolConfiguration = provider
         manager.localizedDescription = "LuckyCat · WireGuard"
         manager.isEnabled = true
         manager.isOnDemandEnabled = false
-        do {
-            try await manager.saveToPreferences()
-        } catch {
-            PrototypeStore.remove(revision: revision)
-            throw error
-        }
+        try await manager.saveToPreferences()
         try await manager.loadFromPreferences()
         if let previousRevision, [.invalid, .disconnected].contains(manager.connection.status) {
             PrototypeStore.remove(revision: previousRevision)
@@ -191,10 +346,17 @@ final class PrototypeVPN {
         return manager
     }
 
+    private func record(_ event: String) {
+        diagnostics.append("\(Date.now.formatted(.iso8601))  \(event)")
+        if diagnostics.count > 32 { diagnostics.removeFirst() }
+    }
+
     private func adopt(_ manager: NETunnelProviderManager?) {
         self.manager = manager
         status = manager?.connection.status ?? .invalid
-        savedEndpoint = manager?.protocolConfiguration?.serverAddress
+        savedEndpoint = manager.flatMap {
+            Self.legacyRevision(of: $0) == nil ? nil : $0.protocolConfiguration?.serverAddress
+        }
     }
 
     private func clearConnectionRequest() {
@@ -202,7 +364,7 @@ final class PrototypeVPN {
         connectionRequest = nil
     }
 
-    private static func revision(of manager: NETunnelProviderManager) -> UUID? {
+    private static func legacyRevision(of manager: NETunnelProviderManager) -> UUID? {
         let provider = manager.protocolConfiguration as? NETunnelProviderProtocol
         let value = provider?.providerConfiguration?[PrototypeStore.revisionKey] as? String
         return value.flatMap(UUID.init(uuidString:))
@@ -218,6 +380,9 @@ final class PrototypeVPN {
         if nsError.domain == PrototypeError.errorDomain,
            let prototype = PrototypeError(rawValue: nsError.code) {
             return prototype.localizedDescription
+        }
+        if nsError.domain == NSCocoaErrorDomain {
+            return PrototypeError.profileStorage.localizedDescription
         }
         if nsError.domain == NEVPNErrorDomain && nsError.code == NEVPNError.configurationReadWriteFailed.rawValue {
             return "无法读写系统 VPN 配置，请核对 VPN 授权和签名。"

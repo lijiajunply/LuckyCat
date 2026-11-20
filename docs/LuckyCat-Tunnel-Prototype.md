@@ -58,3 +58,25 @@ xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS' build CODE_SIGNI
 真机记录覆盖同一 Wi‑Fi 环境。公网 VPN 出口、蜂窝、IPv6-only/NAT64、网络切换和长稳测试仍待验证。
 
 参考 [Apple Network Extensions 配置](https://developer.apple.com/documentation/xcode/configuring-network-extensions/) · [Apple Packet Tunnel 适用场景](https://developer.apple.com/documentation/technotes/tn3120-expected-use-cases-for-network-extension-packet-tunnel-providers) · [wireguard-go 固定提交](https://git.zx2c4.com/wireguard-go/commit/?id=b3bc704ef0ee21a36298601a9e1e5ff90377ac52)。
+
+## 第三阶段配置导入
+
+在「配置」页从文件导入或粘贴 YAML，预览节点，选择默认节点并保存。连接页读取本机保存的选择，首次连接前会显示数据使用说明。切换节点前先断开 VPN，选择后手动连接。原型 JSON 仍可导入。
+
+YAML 使用 UTF-8，文件上限 32 KiB，最多 16 个节点。只接受根级 `proxies` 列表，按示例使用两格列表缩进和四格字段缩进。可用独立注释行和简单的单引号或双引号值。YAML 别名、标签、行内映射、策略组和规则超出该格式。各节点名称须唯一。`udp` 可省略或设为 `true`。`dns` 使用行内列表，地址应可经隧道访问。替换示例密钥后再导入。
+
+```yaml
+proxies:
+  - name: Test Peer
+    type: wireguard
+    server: 192.0.2.40
+    port: 51820
+    ip: 10.66.0.2
+    ipv6: "fd66::2"
+    private-key: "<客户端私钥>"
+    public-key: "<远端公钥>"
+    dns: [10.66.0.1, "fd66::1"]
+    udp: true
+```
+
+真机构建需要在主 App 和扩展的签名描述文件中加入 `group.com.luckyfish.LuckyCat`。App Group 保存带版本的快照，已有共享钥匙串组保存凭据。系统 VPN 配置通过配置 ID 和快照修订号读取对应版本。

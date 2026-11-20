@@ -6,6 +6,10 @@
     <array>
         <string>packet-tunnel-provider</string>
     </array>
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.luckyfish.LuckyCat</string>
+    </array>
     <key>keychain-access-groups</key>
     <array>
         <string>$(AppIdentifierPrefix)com.luckyfish.LuckyCat.WireGuardPrototype</string>

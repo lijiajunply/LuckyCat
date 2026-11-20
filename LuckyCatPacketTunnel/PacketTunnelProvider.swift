@@ -35,11 +35,37 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
         }
     }
 
+    override func handleAppMessage(_ messageData: Data, completionHandler: ((Data?) -> Void)?) {
+        guard messageData.count <= 256,
+              let request = try? JSONDecoder().decode(TunnelStatusMessage.Request.self, from: messageData),
+              request.version == TunnelStatusMessage.version else {
+            completionHandler?(nil)
+            return
+        }
+        lifecycle.async {
+            let reply = TunnelStatusMessage.Reply(
+                version: TunnelStatusMessage.version,
+                id: request.id,
+                ready: self.engine != 0 && self.startupCompletion == nil
+            )
+            completionHandler?(try? JSONEncoder().encode(reply))
+        }
+    }
+
     private func loadConfiguration() throws -> PrototypeConfiguration {
         guard let provider = protocolConfiguration as? NETunnelProviderProtocol,
               let values = provider.providerConfiguration,
-              values[PrototypeStore.configurationIdentifierKey] as? String == PrototypeStore.configurationIdentifier,
-              let rawRevision = values[PrototypeStore.revisionKey] as? String,
+              values[PrototypeStore.configurationIdentifierKey] as? String == PrototypeStore.configurationIdentifier else {
+            throw PrototypeError.missingConfiguration
+        }
+        if values[TunnelSnapshot.profileKey] != nil || values[TunnelSnapshot.revisionKey] != nil {
+            guard let profile = (values[TunnelSnapshot.profileKey] as? String).flatMap(UUID.init(uuidString:)),
+                  let revision = (values[TunnelSnapshot.revisionKey] as? String).flatMap(UUID.init(uuidString:)) else {
+                throw PrototypeError.missingConfiguration
+            }
+            return try TunnelSnapshot.load(profileID: profile, revision: revision)
+        }
+        guard let rawRevision = values[PrototypeStore.revisionKey] as? String,
               let revision = UUID(uuidString: rawRevision) else {
             throw PrototypeError.missingConfiguration
         }
