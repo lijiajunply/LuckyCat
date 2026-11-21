@@ -21,14 +21,30 @@ enum ClashGeodata {
         }
     }
 
+    private struct Resource {
+        let name: String
+        let urls: [URL]
+    }
+
     nonisolated private static let defaultGeoIP = URL(
         string: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.dat"
     )!
     nonisolated private static let defaultGeoSite = URL(
         string: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geosite.dat"
     )!
+    // GitHub release downloads are throttled or unreachable on some networks,
+    // which left users stuck before the tunnel could even start. jsDelivr mirrors
+    // the same `release` branch, so try it first and keep GitHub as a fallback.
+    nonisolated private static let mirrorGeoIP = URL(
+        string: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geoip.dat"
+    )!
+    nonisolated private static let mirrorGeoSite = URL(
+        string: "https://cdn.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@release/geosite.dat"
+    )!
     nonisolated private static let minimumBytes = 100 * 1024
     nonisolated private static let maximumBytes = 64 * 1024 * 1024
+    nonisolated private static let requestTimeout: TimeInterval = 30
+    nonisolated private static let resourceTimeout: TimeInterval = 120
 
     nonisolated static func isRequired(_ yaml: String) -> Bool {
         let upper = yaml.uppercased()
@@ -40,13 +56,21 @@ enum ClashGeodata {
         let directory = try workingDirectory()
         let endpoints = endpoints(from: yaml)
 
-        for (url, name) in [
-            (endpoints.geoIP, geoIPFileName),
-            (endpoints.geoSite, geoSiteFileName)
+        for source in [
+            Resource(
+                name: geoIPFileName,
+                urls: endpoints.geoIP.isEmpty
+                    ? [mirrorGeoIP, defaultGeoIP] : endpoints.geoIP
+            ),
+            Resource(
+                name: geoSiteFileName,
+                urls: endpoints.geoSite.isEmpty
+                    ? [mirrorGeoSite, defaultGeoSite] : endpoints.geoSite
+            )
         ] {
-            let destination = directory.appending(path: name)
+            let destination = directory.appending(path: source.name)
             if isUsable(destination) { continue }
-            let data = try await download(url, name: name)
+            let data = try await download(source)
             try data.write(
                 to: destination,
                 options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
@@ -54,14 +78,17 @@ enum ClashGeodata {
         }
     }
 
-    nonisolated private static func endpoints(from yaml: String) -> (geoIP: URL, geoSite: URL) {
+    nonisolated private static func endpoints(from yaml: String) -> (geoIP: [URL], geoSite: [URL]) {
         guard let box = ClashYamlToJSON(yaml, nil),
               let data = box.value.data(using: .utf8),
               let document = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let geox = document["geox-url"] as? [String: Any] else {
-            return (defaultGeoIP, defaultGeoSite)
+            return ([], [])
         }
-        return (httpsURL(geox["geoip"]) ?? defaultGeoIP, httpsURL(geox["geosite"]) ?? defaultGeoSite)
+        return (
+            httpsURL(geox["geoip"]).map { [$0] } ?? [],
+            httpsURL(geox["geosite"]).map { [$0] } ?? []
+        )
     }
 
     nonisolated private static func httpsURL(_ value: Any?) -> URL? {
@@ -76,14 +103,41 @@ enum ClashGeodata {
         return size.intValue >= minimumBytes
     }
 
-    nonisolated private static func download(_ url: URL, name: String) async throws -> Data {
-        guard url.scheme?.lowercased() == "https" else { throw Failure.download(name) }
+    /// Tries every mirror in order and reports the last failure only once all
+    /// of them have been exhausted.
+    nonisolated private static func download(_ source: Resource) async throws -> Data {
+        var lastFailure: Failure = .download(source.name)
+        for url in source.urls {
+            do {
+                return try await fetch(url, name: source.name)
+            } catch let failure as Failure {
+                lastFailure = failure
+            } catch {
+                lastFailure = .download(source.name)
+            }
+        }
+        throw lastFailure
+    }
+
+    nonisolated private static func fetch(_ url: URL, name: String) async throws -> Data {
+        guard url.scheme?.lowercased() == "https" else { throw Failure.invalid(name) }
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.timeoutIntervalForRequest = requestTimeout
+        configuration.timeoutIntervalForResource = resourceTimeout
+        configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        let session = URLSession(configuration: configuration)
+        defer { session.finishTasksAndInvalidate() }
         do {
-            let (data, response) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
+            let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse,
                   (200...299).contains(http.statusCode),
-                  data.count >= minimumBytes, data.count <= maximumBytes,
-                  http.url?.scheme?.lowercased() == "https" else {
+                  http.url?.scheme?.lowercased() == "https",
+                  data.count >= minimumBytes, data.count <= maximumBytes else {
+                throw Failure.invalid(name)
+            }
+            if http.mimeType?.lowercased().contains("html") == true {
                 throw Failure.invalid(name)
             }
             return data
