@@ -1,10 +1,14 @@
+import NetworkExtension
 import SwiftUI
 import UIKit
 
 struct ConnectionPage: View {
     @Environment(\.openURL) private var openURL
     @AppStorage("tunnelDisclosureVersion") private var disclosureVersion = 0
+    @AppStorage("hideOutboundIP") private var hideOutboundIP = false
     @State private var showingDisclosure = false
+    @State private var showingOutboundIP = false
+    @State private var detection = OutboundIPDetection()
 
     let vpn: PrototypeVPN
     var onImportFile: () -> Void
@@ -77,6 +81,8 @@ struct ConnectionPage: View {
                     currentNodeSection(profile)
                 }
 
+                networkDetectionSection
+
                 Section {
                     Picker("分流模式", selection: modeBinding) {
                         ForEach(TrafficMode.allCases, id: \.self) { mode in
@@ -113,6 +119,21 @@ struct ConnectionPage: View {
                 }
             } message: {
                 Text(AppDisclosure.text)
+            }
+            .sheet(isPresented: $showingOutboundIP) {
+                OutboundIPDetailView(detection: detection)
+            }
+            .onAppear { refreshDetectionIfNeeded() }
+            .onChange(of: vpn.status) { _, status in
+                refreshDetection(after: status)
+            }
+            .onChange(of: vpn.library.trafficMode) { _, _ in
+                guard vpn.isActive else { return }
+                refreshDetectionSoon()
+            }
+            .onChange(of: vpn.library.selectedProfile?.selectedNodeID) { _, _ in
+                guard vpn.isActive else { return }
+                refreshDetectionSoon()
             }
         }
     }
@@ -331,6 +352,154 @@ struct ConnectionPage: View {
         } footer: {
             Text("连接中切换节点会立即应用到新连接，已有连接保持原节点。")
         }
+    }
+
+    // MARK: - Network detection
+
+    @ViewBuilder private var networkDetectionSection: some View {
+        Section {
+            if let report = detection.report {
+                Button {
+                    showingOutboundIP = true
+                } label: {
+                    detectionRow(report)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("network-detection")
+
+                if let failure = detection.failure {
+                    Text("上次检测失败：\(failure.localizedDescription)")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+            } else if let failure = detection.failure {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("检测失败", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(failure.localizedDescription)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("重新检测") { detection.refresh() }
+                        .font(.callout)
+                        .disabled(detection.isChecking)
+                }
+            } else {
+                HStack(spacing: 8) {
+                    if detection.isChecking {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+                    Text(detection.isChecking ? "正在检测出口 IP…" : "尚未检测")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            HStack {
+                Text("网络检测")
+                Spacer()
+                Button {
+                    detection.refresh()
+                } label: {
+                    if detection.isChecking {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+                .buttonStyle(.borderless)
+                .disabled(detection.isChecking)
+                .accessibilityLabel("重新检测出口 IP")
+                .accessibilityIdentifier("refresh-network-detection")
+            }
+        } footer: {
+            Text(networkDetectionFooter)
+        }
+    }
+
+    private func detectionRow(_ report: OutboundIPReport) -> some View {
+        HStack(spacing: 12) {
+            Text(report.countryCode ?? "—")
+                .font(.caption2.weight(.bold))
+                .foregroundStyle(.secondary)
+                .frame(width: 34, height: 26)
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 7))
+                .accessibilityLabel(report.countryName.isEmpty ? "未知地区" : report.countryName)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(hideOutboundIP ? "••••••••" : report.ip)
+                    .font(.callout.monospaced())
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .minimumScaleFactor(0.7)
+                Text(detectionSubtitle(report))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            VStack(alignment: .trailing, spacing: 3) {
+                Text("质量 \(report.quality.title)")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(detectionColor(report.quality))
+                Text(report.kind.title)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            Image(systemName: "chevron.right")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+        }
+        .contentShape(Rectangle())
+    }
+
+    private func detectionSubtitle(_ report: OutboundIPReport) -> String {
+        var parts: [String] = []
+        if !report.countryName.isEmpty { parts.append(report.countryName) }
+        if let organization = report.organization, !organization.isEmpty {
+            parts.append(organization)
+        }
+        if !report.flags.isEmpty { parts.append(report.flags.joined(separator: "/")) }
+        if parts.isEmpty { parts.append("第三方查询") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func detectionColor(_ quality: OutboundIPReport.Quality) -> Color {
+        switch quality {
+        case .good: .green
+        case .normal: .secondary
+        case .risky: .red
+        }
+    }
+
+    private var networkDetectionFooter: String {
+        let origin = vpn.isActive
+            ? "检测经当前 VPN 路由发起，反映当前流量出口。"
+            : "未连接 VPN，检测反映当前普通网络出口。"
+        return origin + "由第三方 IP 查询服务提供，结果仅供参考，且只保留在内存中。"
+    }
+
+    private func refreshDetectionIfNeeded() {
+        guard !isRunningForPreviews else { return }
+        detection.refreshIfStale()
+    }
+
+    private func refreshDetection(after status: NEVPNStatus) {
+        guard !isRunningForPreviews else { return }
+        guard status == .connected || status == .disconnected else { return }
+        refreshDetectionSoon()
+    }
+
+    /// Waits for the core to apply a mode or node change before asking again.
+    private func refreshDetectionSoon() {
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            detection.refresh()
+        }
+    }
+
+    private var isRunningForPreviews: Bool {
+        ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
     }
 
     private func nodeSubtitle(_ profile: Profile) -> String {

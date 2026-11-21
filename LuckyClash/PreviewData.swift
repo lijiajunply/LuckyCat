@@ -259,6 +259,21 @@ enum PreviewSamples {
         )
     }
 
+    // MARK: - Outbound IP
+
+    static let outboundIP = OutboundIPReport(
+        ip: "203.0.113.42",
+        countryCode: "SG",
+        country: "Singapore",
+        kind: .hosting,
+        organization: "Example Cloud Ltd.",
+        asn: 64_500,
+        isProxy: true,
+        isVPN: true,
+        source: "ipquery.io",
+        checkedAt: .now
+    )
+
     // MARK: - Diagnostics
 
     static func diagnosticLog() -> DiagnosticLog {
