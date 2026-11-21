@@ -15,6 +15,11 @@ struct ProfileDetailView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let message = vpn.message {
+                    Section {
+                        MessageLabel(text: message)
+                    }
+                }
                 if let profile {
                     Section("名称") {
                         TextField("配置名称", text: $draftName)

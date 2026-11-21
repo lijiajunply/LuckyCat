@@ -165,13 +165,22 @@ struct ConnectionPage: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(profile.name)
                         .foregroundStyle(.primary)
-                    Text(profileSubtitle(profile))
+                    Text(vpn.updatingProfileID == profile.id ? "正在更新…" : profileSubtitle(profile))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
+                    if vpn.updatingProfileID != profile.id,
+                       let updated = profile.subscription?.lastUpdated {
+                        Text("已更新于 \(updated.formatted(date: .abbreviated, time: .shortened))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer(minLength: 8)
-                if let node = profile.selectedNode,
+                if vpn.updatingProfileID == profile.id {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if let node = profile.selectedNode,
                    let delay = vpn.latencyValue(for: node.name, profileID: profile.id) {
                     Text("\(delay) ms")
                         .font(.caption.monospacedDigit())
@@ -196,7 +205,7 @@ struct ConnectionPage: View {
             Button {
                 onShowDetail(profile.id)
             } label: {
-                Label("编辑", systemImage: "square.and.pencil")
+                Label("详情", systemImage: "info.circle")
             }
             .tint(.indigo)
             Button(role: .destructive) {
@@ -218,7 +227,7 @@ struct ConnectionPage: View {
             Button {
                 onShowDetail(profile.id)
             } label: {
-                Label("编辑", systemImage: "square.and.pencil")
+                Label("详情", systemImage: "info.circle")
             }
             Button(role: .destructive) {
                 onDelete(profile)
