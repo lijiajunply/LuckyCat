@@ -70,7 +70,7 @@ struct ConnectionPage: View {
                 if vpn.library.selectedProfile != nil {
                     Section {
                         Toggle(isOn: connectionBinding) {
-                            Label("连接", systemImage: "bolt.shield")
+                            Label(connectionBinding.wrappedValue ? "已连接" : "未连接", systemImage: "bolt.shield")
                         }
                         .disabled(connectToggleDisabled)
                         .accessibilityIdentifier("connect-vpn")
@@ -82,22 +82,6 @@ struct ConnectionPage: View {
                 }
 
                 networkDetectionSection
-
-                Section {
-                    Picker("分流模式", selection: modeBinding) {
-                        ForEach(TrafficMode.allCases, id: \.self) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(vpn.busy)
-                    .accessibilityIdentifier("mode-picker")
-                    Text(modeExplanation)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                } header: {
-                    Text("分流模式")
-                }
 
                 if let issue = vpn.issue, issue != .storage {
                     Section("恢复") {
@@ -305,6 +289,14 @@ struct ConnectionPage: View {
 
     @ViewBuilder private func currentNodeSection(_ profile: Profile) -> some View {
         Section {
+            Picker("分流模式", selection: modeBinding) {
+                                ForEach(TrafficMode.allCases, id: \.self) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .disabled(vpn.busy)
+                            .accessibilityIdentifier("mode-picker")
             Button {
                 onShowProfiles()
             } label: {
@@ -332,21 +324,6 @@ struct ConnectionPage: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("current-node")
             .disabled(!vpn.canSwitchNodes(for: profile.id))
-
-            Button {
-                Task { await vpn.testLatency() }
-            } label: {
-                if vpn.latencyTesting, vpn.latencyProfileID == profile.id {
-                    HStack(spacing: 8) {
-                        ProgressView()
-                            .controlSize(.mini)
-                        Text("正在测试节点延迟…")
-                    }
-                } else {
-                    Label("延迟测试", systemImage: "speedometer")
-                }
-            }
-            .disabled(vpn.latencyTesting || vpn.busy)
         } header: {
             Text("当前节点")
         }
