@@ -156,7 +156,6 @@ struct ConnectionPage: View {
     private func profileRow(_ profile: Profile) -> some View {
         let selected = vpn.library.selectedProfileID == profile.id
         return Button {
-            guard !vpn.busy, !vpn.isActive else { return }
             vpn.select(profileID: profile.id)
         } label: {
             HStack(spacing: 12) {
@@ -191,6 +190,7 @@ struct ConnectionPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(vpn.switchingProfile || (vpn.busy && !vpn.latencyTesting && !vpn.isActive))
         .accessibilityIdentifier("profile-\(profile.name)")
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if profile.sourceURL != nil {
@@ -281,7 +281,7 @@ struct ConnectionPage: View {
 
     private var connectToggleDisabled: Bool {
         if vpn.library.selectedProfile == nil { return true }
-        return vpn.busy || (vpn.isActive && !vpn.canStop)
+        return vpn.switchingProfile || vpn.busy || (vpn.isActive && !vpn.canStop)
     }
 
     private var modeBinding: Binding<TrafficMode> {

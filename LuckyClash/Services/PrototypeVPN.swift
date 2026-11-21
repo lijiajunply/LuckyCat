@@ -42,6 +42,7 @@ final class PrototypeVPN {
     private(set) var extensionReady: Bool?
     private(set) var issue: Issue?
     private(set) var latencyTesting = false
+    private(set) var switchingProfile = false
     private(set) var latencyProfileID: UUID?
     private(set) var latencyPending: Set<String> = []
     private(set) var latencyResults: [UUID: [String: Int]] = [:]
@@ -53,6 +54,9 @@ final class PrototypeVPN {
     private var connectionRequest: UUID?
     private var statusChangedAt = UUID()
     private var stopRequest: UUID?
+    // Keep the user's intent until the terminal status arrives, including
+    // after the UI's pending-stop indicator has been cleared.
+    private var intentionalStop = false
     private var diagnosticRequest: UUID?
     private var diagnosticUnavailableRecorded = false
     @ObservationIgnored private var trafficTask: Task<Void, Never>?
@@ -448,13 +452,43 @@ final class PrototypeVPN {
     }
 
     func select(profileID: UUID) {
-        guard libraryLoaded, !busy, !isActive,
+        guard libraryLoaded, !switchingProfile, (!busy || latencyTesting || isActive),
               let index = library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        guard library.selectedProfileID != profileID else { return }
+        let reconnect = isActive
         applySelection(index: index, nodeID: nil)
+        guard library.selectedProfileID == profileID, reconnect else { return }
+        switchingProfile = true
+        message = "正在切换配置并重新连接…"
+        Task { [weak self] in
+            guard let self else { return }
+            defer { self.switchingProfile = false }
+            if self.latencyTesting { self.cancelLatencyTest() }
+            // Let an in-flight connection request finish before stopping its tunnel.
+            for _ in 0..<300 {
+                if !self.busy && !self.latencyTesting { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !self.busy, !self.latencyTesting else {
+                self.message = "切换配置超时，请断开后重试。"
+                return
+            }
+            if self.canStop { self.disconnect() }
+            for _ in 0..<300 {
+                await self.updateStatus()
+                if !self.isActive { break }
+                try? await Task.sleep(for: .milliseconds(100))
+            }
+            guard !self.isActive else {
+                self.message = "断开当前连接超时，请手动断开后重试。"
+                return
+            }
+            await self.connect()
+        }
     }
 
     func select(profileID: UUID, nodeID: UUID, group: String? = nil) {
-        guard libraryLoaded, !busy,
+        guard libraryLoaded, (!busy || latencyTesting), !switchingProfile,
               let index = library.profiles.firstIndex(where: { $0.id == profileID }),
               let node = library.profiles[index].nodes.first(where: { $0.id == nodeID }) else { return }
         guard isActive else {
@@ -471,7 +505,7 @@ final class PrototypeVPN {
     /// The active profile's node can be switched on the running core; any
     /// other profile still needs a reconnect.
     func canSwitchNodes(for profileID: UUID) -> Bool {
-        guard !busy else { return false }
+        guard (!busy || latencyTesting), !switchingProfile else { return false }
         guard isActive else { return true }
         return activeProfileID == profileID
     }
@@ -500,6 +534,7 @@ final class PrototypeVPN {
             guard let self else { return }
             do {
                 try await self.live.select(group: targetGroup, name: node.name)
+                guard !self.switchingProfile, self.library.selectedProfileID == profileID else { return }
                 guard let index = self.library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
                 self.applySelection(index: index, nodeID: node.id, group: targetGroup)
                 self.message = nil
@@ -825,6 +860,7 @@ final class PrototypeVPN {
         guard !busy, !isActive else { return }
         busy = true
         defer { busy = false }
+        intentionalStop = false
         message = nil
         issue = nil
         traffic = nil
@@ -912,6 +948,7 @@ final class PrototypeVPN {
         issue = nil
         let request = UUID()
         stopRequest = request
+        intentionalStop = true
         connection.stopVPNTunnel()
         record("请求断开")
         Task { [weak self] in
@@ -919,6 +956,10 @@ final class PrototypeVPN {
             guard let self, self.stopRequest == request else { return }
             self.stopRequest = nil
             await self.updateStatus()
+            if self.manager?.connection === connection,
+               ![.disconnecting, .disconnected].contains(connection.status) {
+                self.intentionalStop = false
+            }
         }
     }
 
@@ -926,6 +967,11 @@ final class PrototypeVPN {
         guard let connection = manager?.connection else { return }
         let previous = status
         let current = connection.status
+        let wasIntentionalStop = intentionalStop
+        if current == .disconnected || current == .invalid ||
+            (previous == .disconnecting && current == .connected) {
+            intentionalStop = false
+        }
         if current != previous {
             statusChangedAt = UUID()
             status = current
@@ -950,6 +996,7 @@ final class PrototypeVPN {
             clearConnectionRequest()
         }
         guard current == .disconnected, previous != .disconnected else { return }
+        guard !wasIntentionalStop else { return }
         let error: NSError?
         do {
             try await connection.fetchLastDisconnectError()
