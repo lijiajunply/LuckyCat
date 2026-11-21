@@ -12,6 +12,7 @@ enum ClashTunnelStore {
     static let revisionKey = "clashRevision"
     static let selectedGroupKey = "clashSelectedGroup"
     static let selectedNodeKey = "clashSelectedNode"
+    static let modeKey = "clashMode"
 
     private static let group = "group.com.luckyfish.LuckyCat"
 

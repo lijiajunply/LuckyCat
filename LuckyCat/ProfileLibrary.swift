@@ -78,7 +78,7 @@ struct ProfileLibrary: Codable {
 
     var selectedProfile: Profile? { profiles.first { $0.id == selectedProfileID } }
 
-    var trafficMode: TrafficMode { mode ?? .global }
+    var trafficMode: TrafficMode { mode ?? .rule }
 
     static func load() throws -> Self {
         do {

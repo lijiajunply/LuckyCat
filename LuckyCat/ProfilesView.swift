@@ -9,6 +9,7 @@ struct ProfilesView: View {
     var onShowDetail: (UUID) -> Void
     var onDelete: (Profile) -> Void
     var onShowConnection: () -> Void
+    var onShowInfo: () -> Void
 
     private var profile: Profile? { vpn.library.selectedProfile }
 
@@ -39,6 +40,15 @@ struct ProfilesView: View {
             }
             .navigationTitle("配置")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        onShowInfo()
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .accessibilityLabel("连接信息")
+                            .accessibilityIdentifier("connection-info")
+                    }
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     latencyToolbarItem
                     if let profile {
@@ -85,21 +95,6 @@ struct ProfilesView: View {
             }
             if let group = profile.clashGroup, !group.isEmpty {
                 LabeledContent("策略组", value: group)
-            }
-            if let source = profile.sourceURL {
-                LabeledContent("来源", value: source.host() ?? "链接")
-            }
-            if let updated = profile.subscription?.lastUpdated {
-                LabeledContent(
-                    "上次更新",
-                    value: updated.formatted(date: .abbreviated, time: .shortened)
-                )
-            }
-            if let tested = vpn.latencyTestedAt[profile.id] {
-                LabeledContent(
-                    "上次测速",
-                    value: tested.formatted(date: .omitted, time: .shortened)
-                )
             }
             if vpn.latencyTesting, vpn.latencyProfileID == profile.id {
                 HStack(spacing: 8) {

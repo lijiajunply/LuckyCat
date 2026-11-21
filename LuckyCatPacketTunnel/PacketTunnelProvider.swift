@@ -85,11 +85,13 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
               values[ClashTunnelStore.engineKey] as? String == ClashTunnelStore.engineClash,
               let profileID = (values[ClashTunnelStore.profileKey] as? String).flatMap(UUID.init(uuidString:)),
               let revision = (values[ClashTunnelStore.revisionKey] as? String).flatMap(UUID.init(uuidString:)),
-              let configuration = try? ClashTunnelStore.load(profileID: profileID, revision: revision) else {
+              let stored = try? ClashTunnelStore.load(profileID: profileID, revision: revision) else {
             return nil
         }
+        let mode = (values[ClashTunnelStore.modeKey] as? String)
+            .flatMap(TrafficMode.init(rawValue:))
         return ClashSelection(
-            configuration: configuration,
+            configuration: mode.map { ClashModeOverride.apply($0, to: stored) } ?? stored,
             group: values[ClashTunnelStore.selectedGroupKey] as? String,
             node: values[ClashTunnelStore.selectedNodeKey] as? String
         )

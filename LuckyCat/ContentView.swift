@@ -20,6 +20,7 @@ struct ContentView: View {
     @State private var showingDisclosure = false
     @State private var pendingDeletion: Profile?
     @State private var detailProfileID: UUID?
+    @State private var showingInfo = false
 
     private static let disclosure = "LuckyCat 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。LuckyCat 不上传配置、流量或诊断。"
 
@@ -37,7 +38,8 @@ struct ContentView: View {
                 onImportQR: { showingQRImport = true },
                 onShowDetail: { detailProfileID = $0 },
                 onDelete: { pendingDeletion = $0 },
-                onShowConnection: { page = .connection }
+                onShowConnection: { page = .connection },
+                onShowInfo: { showingInfo = true }
             )
             .tabItem { Label("配置", systemImage: "folder") }
             .tag(Page.profiles)
@@ -87,6 +89,9 @@ struct ContentView: View {
             if let detailProfileID {
                 ProfileDetailView(vpn: vpn, profileID: detailProfileID)
             }
+        }
+        .sheet(isPresented: $showingInfo) {
+            ConnectionInfoView(vpn: vpn)
         }
         .alert("删除配置？", isPresented: Binding(
             get: { pendingDeletion != nil },
@@ -161,19 +166,10 @@ struct ContentView: View {
         NavigationStack {
             List {
                 Section("VPN") {
-                    LabeledContent("状态", value: statusLabel)
+                    LabeledContent("状态", value: VPNStatusText.status(vpn))
                     if let profile = vpn.library.selectedProfile, let node = profile.selectedNode {
                         LabeledContent("配置", value: profile.name)
                         LabeledContent("节点", value: node.name)
-                        if let group = profile.clashGroup, !group.isEmpty {
-                            LabeledContent("策略组", value: group)
-                        }
-                        if !node.endpoint.isEmpty {
-                            LabeledContent("远端", value: node.endpoint)
-                        }
-                    }
-                    if vpn.isActive {
-                        LabeledContent("扩展", value: extensionLabel)
                     }
                     feedback
                 }
@@ -214,29 +210,19 @@ struct ContentView: View {
                     }
                 }
 
-                if vpn.library.selectedProfile?.resolvedEngine == .clash {
-                    Section {
-                        LabeledContent("分流", value: "由 Clash 配置决定")
-                    } header: {
-                        Text("分流模式")
-                    } footer: {
-                        Text("代理组与规则由导入的 Clash 配置在隧道内执行。")
-                    }
-                } else {
-                    Section {
-                        Picker("分流模式", selection: modeBinding) {
-                            ForEach(TrafficMode.allCases, id: \.self) { mode in
-                                Text(mode.title).tag(mode)
-                            }
+                Section {
+                    Picker("分流模式", selection: modeBinding) {
+                        ForEach(TrafficMode.allCases, id: \.self) { mode in
+                            Text(mode.title).tag(mode)
                         }
-                        .pickerStyle(.segmented)
-                        .disabled(vpn.busy || vpn.isActive)
-                        .accessibilityIdentifier("mode-picker")
-                    } header: {
-                        Text("分流模式")
-                    } footer: {
-                        Text(modeExplanation)
                     }
+                    .pickerStyle(.segmented)
+                    .disabled(vpn.busy || vpn.isActive)
+                    .accessibilityIdentifier("mode-picker")
+                } header: {
+                    Text("分流模式")
+                } footer: {
+                    Text(modeExplanation)
                 }
 
                 if let issue = vpn.issue, issue != .storage {
@@ -244,21 +230,18 @@ struct ContentView: View {
                         recovery(issue)
                     }
                 }
-
-                if vpn.isActive, let traffic = vpn.traffic {
-                    Section {
-                        LabeledContent("接收", value: Self.bytes(traffic.received))
-                        LabeledContent("发送", value: Self.bytes(traffic.sent))
-                        LabeledContent("更新", value: traffic.updatedAt.formatted(date: .omitted, time: .standard))
-                    } header: {
-                        Text("流量")
-                    } footer: {
-                        Text("由扩展按聚合值每 5 秒上报，仅显示在本机。")
-                    }
-                }
             }
             .navigationTitle("LuckyCat")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        showingInfo = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .accessibilityLabel("连接信息")
+                            .accessibilityIdentifier("connection-info")
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     addProfileMenu
                 }
@@ -418,19 +401,7 @@ struct ContentView: View {
     }
 
     private var modeExplanation: String {
-        let text: String
-        switch vpn.library.trafficMode {
-        case .rule:
-            if (vpn.library.selectedProfile?.rules ?? []).isEmpty {
-                text = "当前配置没有 IP 规则，规则模式将按全局处理。"
-            } else {
-                text = "按配置中的 IP-CIDR / IP-CIDR6 / MATCH 规则分流；不支持域名规则。"
-            }
-        case .global:
-            text = "所有流量都通过当前 WireGuard 节点。"
-        case .direct:
-            text = "VPN 保持连接，但不接管任何流量，系统 DNS 保持不变。"
-        }
+        let text = vpn.library.trafficMode.explanation
         return vpn.isActive ? text + " 断开后可切换模式。" : text
     }
 
@@ -450,18 +421,6 @@ struct ContentView: View {
         case .storage:
             EmptyView()
         }
-    }
-
-    private var extensionLabel: String {
-        switch vpn.extensionReady {
-        case true?: "已就绪"
-        case false?: "未就绪"
-        case nil: "暂不可用"
-        }
-    }
-
-    private static func bytes(_ count: UInt64) -> String {
-        ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .binary)
     }
 
     private var settings: some View {
@@ -490,20 +449,6 @@ struct ContentView: View {
     @ViewBuilder private var feedback: some View {
         if let message = vpn.message {
             MessageLabel(text: message)
-        }
-    }
-
-    private var statusLabel: String {
-        if vpn.requestingConnection { return "正在请求连接" }
-        if vpn.isActive && !vpn.canStop { return "断开中" }
-        switch vpn.status {
-        case .invalid: return vpn.library.selectedProfile == nil ? "未配置" : "已断开"
-        case .disconnected: return "已断开"
-        case .connecting: return "连接中"
-        case .connected: return "已连接"
-        case .reasserting: return "重连中"
-        case .disconnecting: return "断开中"
-        @unknown default: return "未知"
         }
     }
 }
@@ -765,16 +710,6 @@ private struct DiagnosticsView: View {
             Button("清除", role: .destructive) { log.clear() }
         } message: {
             Text("将删除本机保存的全部诊断记录。")
-        }
-    }
-}
-
-private extension TrafficMode {
-    var title: String {
-        switch self {
-        case .rule: "规则"
-        case .global: "全局"
-        case .direct: "直连"
         }
     }
 }

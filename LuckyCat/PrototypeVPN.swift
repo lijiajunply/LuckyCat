@@ -240,7 +240,7 @@ final class PrototypeVPN {
     }
 
     func setMode(_ mode: TrafficMode) {
-        guard libraryLoaded, !busy, !isActive, library.trafficMode != mode else { return }
+        guard libraryLoaded, !busy, !isActive, library.mode != mode else { return }
         var updated = library
         updated.mode = mode
         do {
@@ -928,7 +928,8 @@ final class PrototypeVPN {
             ClashTunnelStore.profileKey: profile.id.uuidString,
             ClashTunnelStore.revisionKey: (profile.clashRevision ?? node.id).uuidString,
             ClashTunnelStore.selectedGroupKey: profile.clashGroup ?? "",
-            ClashTunnelStore.selectedNodeKey: node.name
+            ClashTunnelStore.selectedNodeKey: node.name,
+            ClashTunnelStore.modeKey: library.trafficMode.rawValue
         ]
         manager.protocolConfiguration = provider
         manager.localizedDescription = "LuckyCat · Clash"

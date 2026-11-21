@@ -29,7 +29,7 @@ struct ProfileMetadataTests {
         #expect(node.clientIPv4 == nil)
         #expect(node.dnsServers == nil)
         #expect(node.compatibilityNotes.count == 2)
-        #expect(library.trafficMode == .global)
+        #expect(library.trafficMode == .rule)
         #expect(library.selectedProfile?.sourceURL == nil)
         #expect(library.selectedProfile?.rules == nil)
     }
