@@ -639,14 +639,21 @@ final class PrototypeVPN {
     /// tunnel is running the test goes through its live core, so delays are
     /// measured on the path the tunnel already uses; otherwise a short-lived
     /// core owned by this process is used.
-    func testLatency() async {
+    func testLatency(nodeNames: [String]? = nil, testURL: String? = nil) async {
         guard !busy, !latencyTesting else { return }
         guard libraryLoaded, let profile = library.selectedProfile else {
             message = "请先在连接页选择一个配置。"
             return
         }
+        let availableNames = Self.uniqueNodeNames(profile)
+        let requested = nodeNames.map(Set.init)
+        let names = availableNames.filter { requested == nil || requested!.contains($0) }
+        guard !names.isEmpty else {
+            message = "该范围没有可测速的本地节点。"
+            return
+        }
         if isActive {
-            await testLatencyLive(profile)
+            await testLatencyLive(profile, names: names, testURL: testURL)
             return
         }
         guard let revision = profile.clashRevision,
@@ -655,18 +662,11 @@ final class PrototypeVPN {
             issue = .configuration
             return
         }
-        let names = Self.uniqueNodeNames(profile)
-        guard !names.isEmpty else {
-            message = "该配置的节点由 proxy-providers 提供，无法直接测试延迟。"
-            return
-        }
-
         busy = true
         latencyTesting = true
         latencyProfileID = profile.id
         latencyPending = Set(names)
-        latencyResults[profile.id] = [:]
-        latencyTestedAt[profile.id] = nil
+        for name in names { latencyResults[profile.id]?.removeValue(forKey: name) }
         message = nil
         issue = nil
         record("开始延迟测试")
@@ -677,7 +677,7 @@ final class PrototypeVPN {
             latencyPending = []
         }
 
-        let testURL = Self.testURL(for: profile)
+        let testURL = testURL.flatMap { $0.isEmpty ? nil : $0 } ?? Self.testURL(for: profile)
 
         do {
             let results = try await latencyTester.measure(
@@ -691,8 +691,7 @@ final class PrototypeVPN {
                 applyLatency(name, delay: delay, profileID: profile.id)
             }
             latencyTestedAt[profile.id] = Date()
-            if let current = library.profiles.first(where: { $0.id == profile.id }),
-               !hasAllLatencyResults(current, profileID: profile.id) {
+            if !names.allSatisfy({ latencyResults[profile.id]?[$0] != nil }) {
                 message = "部分节点没有返回延迟。"
             }
             record("延迟测试完成")
@@ -703,18 +702,12 @@ final class PrototypeVPN {
         }
     }
 
-    private func testLatencyLive(_ profile: Profile) async {
-        let names = Self.uniqueNodeNames(profile)
-        guard !names.isEmpty else {
-            message = "该配置的节点由 proxy-providers 提供，无法直接测试延迟。"
-            return
-        }
+    private func testLatencyLive(_ profile: Profile, names: [String], testURL: String?) async {
 
         latencyTesting = true
         latencyProfileID = profile.id
         latencyPending = Set(names)
-        latencyResults[profile.id] = [:]
-        latencyTestedAt[profile.id] = nil
+        for name in names { latencyResults[profile.id]?.removeValue(forKey: name) }
         message = nil
         issue = nil
         record("开始延迟测试")
@@ -726,7 +719,7 @@ final class PrototypeVPN {
 
         do {
             let results = try await live.urlTest(
-                names: names, testURL: Self.testURL(for: profile)
+                names: names, testURL: testURL.flatMap { $0.isEmpty ? nil : $0 } ?? Self.testURL(for: profile)
             ) { [weak self] name, delay in
                 Task { @MainActor [weak self] in
                     self?.applyLatency(name, delay: delay, profileID: profile.id)
@@ -736,8 +729,7 @@ final class PrototypeVPN {
                 applyLatency(name, delay: delay, profileID: profile.id)
             }
             latencyTestedAt[profile.id] = Date()
-            if let current = library.profiles.first(where: { $0.id == profile.id }),
-               !hasAllLatencyResults(current, profileID: profile.id) {
+            if !names.allSatisfy({ latencyResults[profile.id]?[$0] != nil }) {
                 message = "部分节点没有返回延迟。"
             }
             record("延迟测试完成")

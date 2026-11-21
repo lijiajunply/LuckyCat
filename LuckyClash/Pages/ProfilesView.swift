@@ -7,6 +7,8 @@ struct ProfilesView: View {
     var onShowConnection: () -> Void
     var onShowInfo: () -> Void
 
+    @State private var expandedGroups: Set<String> = []
+
     private var profile: Profile? { vpn.library.selectedProfile }
 
     var body: some View {
@@ -21,7 +23,6 @@ struct ProfilesView: View {
                     if let groups = profile.clashGroups, !groups.isEmpty {
                         groupsSection(profile: profile, groups: groups)
                     }
-                    nodesSection(profile)
                     if profile.sourceURL != nil {
                         subscriptionSection(profile)
                     }
@@ -119,28 +120,69 @@ struct ProfilesView: View {
     @ViewBuilder private func groupsSection(profile: Profile, groups: [ClashImportGroup]) -> some View {
         Section {
             ForEach(groups, id: \.name) { group in
-                NavigationLink {
-                    ClashGroupDetailView(vpn: vpn, profileID: profile.id, group: group)
+                Button {
+                    if expandedGroups.contains(group.name) {
+                        expandedGroups.remove(group.name)
+                    } else {
+                        expandedGroups.insert(group.name)
+                    }
                 } label: {
                     HStack(spacing: 8) {
+                        Image(systemName: expandedGroups.contains(group.name) ? "chevron.down" : "chevron.right")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(group.name)
+                            Text(group.name).foregroundStyle(.primary)
                             Text("\(group.type) · \(group.members.count) 个成员")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 8)
                         if profile.clashGroup == group.name {
-                            Image(systemName: "checkmark")
-                                .foregroundStyle(.tint)
+                            Image(systemName: "checkmark").foregroundStyle(.tint)
                                 .accessibilityLabel("当前策略组")
                         }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .contextMenu { groupLatencyAction(group) }
+                .swipeActions(edge: .trailing) { groupLatencyAction(group) }
+
+                if expandedGroups.contains(group.name) {
+                    if group.members.isEmpty {
+                        Text("该策略组暂无成员。").foregroundStyle(.secondary)
+                    }
+                    ForEach(group.members, id: \.self) { member in
+                        if let node = profile.nodes.first(where: { $0.name == member }) {
+                            ProfileNodeRow(vpn: vpn, profile: profile, node: node, group: group)
+                                .padding(.leading, 20)
+                        } else {
+                            HStack {
+                                Text(member)
+                                Spacer()
+                                Text("配置内引用").font(.caption).foregroundStyle(.secondary)
+                            }
+                            .padding(.leading, 20)
+                        }
+                    }
+                    if !group.isSelectable {
+                        Text("该策略组由内核自动选择，不能手动切换。")
+                            .font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }
         } header: {
             Text("策略组")
         }
+    }
+
+    private func groupLatencyAction(_ group: ClashImportGroup) -> some View {
+        Button {
+            Task { await vpn.testLatency(nodeNames: group.members, testURL: group.testURL) }
+        } label: {
+            Label("测试组内延迟", systemImage: "speedometer")
+        }
+        .disabled(vpn.busy || vpn.latencyTesting)
     }
 
     @ViewBuilder private func nodesSection(_ profile: Profile) -> some View {

@@ -183,7 +183,7 @@ struct ConnectionPage: View {
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("profile-\(profile.name)")
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if profile.sourceURL != nil {
                 Button {
                     Task { await vpn.update(profile) }
@@ -298,6 +298,7 @@ struct ConnectionPage: View {
                             .disabled(vpn.busy)
                             .accessibilityIdentifier("mode-picker")
             Button {
+                guard vpn.canSwitchNodes(for: profile.id) else { return }
                 onShowProfiles()
             } label: {
                 HStack(spacing: 10) {
@@ -323,9 +324,23 @@ struct ConnectionPage: View {
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("current-node")
-            .disabled(!vpn.canSwitchNodes(for: profile.id))
+            .contextMenu { currentNodeLatencyAction(profile) }
+            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                currentNodeLatencyAction(profile)
+            }
         } header: {
             Text("当前节点")
+        }
+    }
+
+    @ViewBuilder private func currentNodeLatencyAction(_ profile: Profile) -> some View {
+        if let node = profile.selectedNode, node.type != "auto" {
+            Button {
+                Task { await vpn.testLatency(nodeNames: [node.name]) }
+            } label: {
+                Label("测试延迟", systemImage: "speedometer")
+            }
+            .disabled(vpn.busy || vpn.latencyTesting)
         }
     }
 
