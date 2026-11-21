@@ -1,10 +1,10 @@
-# LuckyCat iOS 技术方案与设计文档
+# LuckyClash iOS 技术方案与设计文档
 
 2026 年 11 月 20 日 · 评审稿
 
 ## 1. 产品目标与首版范围
 
-LuckyCat 是面向自带网络配置的用户的原生 iOS 客户端。目标是让用户导入受支持的 Clash YAML、选定远程节点、连接与断开，并能看懂失败原因。首版按 App Store VPN 应用规划，使用 SwiftUI 和 Network Extension。组织账号申请与真机开发并行。发布版是否集成 Clash 内核，以分发许可、实际包路由和真机稳定性为准。 [原始讨论《开发Clash客户端》](chatgpt-conversation://6affbe8a-8698-83ea-90f8-afe681b7a11a) · [Apple 审核指南 §5.4](https://developer.apple.com/app-store/review/guidelines/#vpn-apps)
+LuckyClash 是面向自带网络配置的用户的原生 iOS 客户端。目标是让用户导入受支持的 Clash YAML、选定远程节点、连接与断开，并能看懂失败原因。首版按 App Store VPN 应用规划，使用 SwiftUI 和 Network Extension。组织账号申请与真机开发并行。发布版是否集成 Clash 内核，以分发许可、实际包路由和真机稳定性为准。 [原始讨论《开发Clash客户端》](chatgpt-conversation://6affbe8a-8698-83ea-90f8-afe681b7a11a) · [Apple 审核指南 §5.4](https://developer.apple.com/app-store/review/guidelines/#vpn-apps)
 
 | 首版范围 | 具体行为 |
 | --- | --- |
@@ -19,7 +19,7 @@ LuckyCat 是面向自带网络配置的用户的原生 iOS 客户端。目标是
 
 ### 工程起点
 
-现有项目使用 SwiftUI 和 SwiftData 模板。通过 `xcodebuild -list` 确认目前只有 LuckyCat、LuckyCatTests 和 LuckyCatUITests 三个目标。主目标同时声明 iOS、macOS 和 visionOS，iOS 部署目标为 27.2。首轮先确定开发真机可安装的系统版本，正式最低支持版本依据目标用户和依赖兼容性决定。SwiftData 可用于主 App 的配置元数据，现有 `Item` 与列表后续由配置页替换。 [工程定义](../LuckyCat.xcodeproj/project.xcproj) · [App 入口](../LuckyCat/LuckyCatApp.swift)
+现有项目使用 SwiftUI 和 SwiftData 模板。通过 `xcodebuild -list` 确认目前只有 LuckyClash、LuckyClashTests 和 LuckyClashUITests 三个目标。主目标同时声明 iOS、macOS 和 visionOS，iOS 部署目标为 27.2。首轮先确定开发真机可安装的系统版本，正式最低支持版本依据目标用户和依赖兼容性决定。SwiftData 可用于主 App 的配置元数据，现有 `Item` 与列表后续由配置页替换。 [工程定义](../LuckyClash.xcodeproj/project.xcproj) · [App 入口](../LuckyClash/LuckyClashApp.swift)
 
 ## 2. 核心选型与发布条件
 
@@ -36,7 +36,7 @@ ProjectClash 将 Apple SDK、Swift 适配层与客户端拆为独立仓库。原
 
 **许可是分发决策。** ProjectClash 核心及适配层的许可证按锁定版本审查。清单应覆盖内核、绑定代码、Swift 适配、依赖及规则数据，记录修改、组合链接范围、通知、对应源码与构建材料，以及 App Store 分发条款与相应 GPL 条款能否同时满足。若希望闭源，发布构建须采用满足该模式的组件或取得相应授权。在核查完成前用内部真机原型评估，暂缓向外部测试者分发相关构建。 [ProjectClash 核心许可证](https://github.com/ProjectClash/Clash/blob/main/LICENSE) · [适配层许可证](https://github.com/ProjectClash/Clash-Adapter/blob/main/LICENSE) · [GPL-3.0 条文](https://www.gnu.org/licenses/gpl-3.0.html) · [Apple 开发者协议与条款](https://developer.apple.com/support/terms/)
 
-[ProjectClash 内部原型](LuckyCat-Clash-Prototype.md) 记录了候选版本、复现步骤、验证范围和发布阻碍。
+[ProjectClash 内部原型](LuckyClash-Clash-Prototype.md) 记录了候选版本、复现步骤、验证范围和发布阻碍。
 
 ## 3. 架构与模块职责
 
@@ -55,8 +55,8 @@ flowchart LR
 
 | 模块 | 责任 |
 | --- | --- |
-| LuckyCat 主目标 | 配置导入、选择、隐私披露、错误反馈。通过 VPN 协调器串行管理系统配置和连接命令 |
-| LuckyCatPacketTunnel 扩展目标 | 读取固定配置版本、启动内核、应用网络设置、处理 IP 包与链路变化、清理资源。以系统回调为生命周期边界 |
+| LuckyClash 主目标 | 配置导入、选择、隐私披露、错误反馈。通过 VPN 协调器串行管理系统配置和连接命令 |
+| LuckyClashPacketTunnel 扩展目标 | 读取固定配置版本、启动内核、应用网络设置、处理 IP 包与链路变化、清理资源。以系统回调为生命周期边界 |
 | 共享 Swift 模块 | 配置快照、状态与错误模型、IPC 编解码。与内核绑定及 SwiftUI 解耦 |
 | 内核适配层 | 提供异步 `start(snapshot, packetIO)`、`stop()`、`status()`。输入是 IP 包及地址族，输出为远端返回的包。接口定义属于本项目，按所选 SDK 实现 |
 

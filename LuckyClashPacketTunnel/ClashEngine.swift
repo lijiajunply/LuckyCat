@@ -27,15 +27,15 @@ final class ClashEngine: NSObject, @unchecked Sendable {
     }
 
     private static let log = Logger(
-        subsystem: "com.luckyfish.LuckyCat.PacketTunnel", category: "clash"
+        subsystem: "com.luckyfish.LuckyClash.PacketTunnel", category: "clash"
     )
     private static let availableFlag: UInt32 = 1 << 8
     private static let defaultFlag: UInt32 = 1 << 9
     private static let ownTunnelFlag: UInt32 = 1 << 10
 
     private let provider: NEPacketTunnelProvider
-    private let lifecycle = DispatchQueue(label: "com.luckyfish.LuckyCat.clash.lifecycle")
-    private let pathQueue = DispatchQueue(label: "com.luckyfish.LuckyCat.clash.path")
+    private let lifecycle = DispatchQueue(label: "com.luckyfish.LuckyClash.clash.lifecycle")
+    private let pathQueue = DispatchQueue(label: "com.luckyfish.LuckyClash.clash.path")
     private let pathLock = NSLock()
     private let stateLock = NSLock()
 
@@ -169,7 +169,7 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         let root = URL.applicationSupportDirectory
         #else
         guard let root = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyCat"
+            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyClash"
         ) else {
             throw PrototypeError.sharedContainerUnavailable
         }

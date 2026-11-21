@@ -34,7 +34,7 @@ type packetFlowDevice struct {
 
 func (flow *packetFlowDevice) File() *os.File           { return nil }
 func (flow *packetFlowDevice) MTU() (int, error)        { return flow.mtu, nil }
-func (flow *packetFlowDevice) Name() (string, error)    { return "LuckyCat", nil }
+func (flow *packetFlowDevice) Name() (string, error)    { return "LuckyClash", nil }
 func (flow *packetFlowDevice) Events() <-chan tun.Event { return flow.events }
 func (flow *packetFlowDevice) BatchSize() int           { return 1 }
 

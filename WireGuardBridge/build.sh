@@ -27,7 +27,7 @@ for architecture in $ARCHS; do
     target="$architecture-apple-ios$IPHONEOS_DEPLOYMENT_TARGET$target_suffix"
     export CGO_CFLAGS="-target $target -isysroot $SDKROOT"
     export CGO_LDFLAGS="$CGO_CFLAGS"
-    archive="$DERIVED_FILE_DIR/libLuckyCatWireGuard-$architecture.a"
+    archive="$DERIVED_FILE_DIR/libLuckyClashWireGuard-$architecture.a"
     go build -mod=readonly -trimpath -buildmode=c-archive -o "$archive" .
     set -- "$@" "$archive"
 done

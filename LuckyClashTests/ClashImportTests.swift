@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import LuckyCat
+@testable import LuckyClash
 
 @MainActor
 struct ClashImportTests {
@@ -50,10 +50,10 @@ struct ClashImportTests {
         """
         let document = try ClashImport.parse(Data(yaml.utf8))
         #expect(document.nodes.map(\.name) == ["Only"])
-        #expect(document.groups.first?.name == "LuckyCat")
+        #expect(document.groups.first?.name == "LuckyClash")
         let output = try #require(document.clashYAML)
         #expect(output.contains("proxy-groups"))
-        #expect(output.contains("MATCH,LuckyCat"))
+        #expect(output.contains("MATCH,LuckyClash"))
         #expect(output.contains("dns"))
     }
 
@@ -158,11 +158,11 @@ struct ClashImportTests {
         let converted = try ClashImport.fromLegacy(legacy)
         #expect(converted.engine == .clash)
         #expect(converted.nodes.first?.type == "wireguard")
-        #expect(converted.groups.first?.name == "LuckyCat")
+        #expect(converted.groups.first?.name == "LuckyClash")
         let yaml = try #require(converted.clashYAML)
         #expect(yaml.contains("type: wireguard"))
         #expect(yaml.contains("private-key"))
-        #expect(yaml.contains("MATCH,LuckyCat"))
+        #expect(yaml.contains("MATCH,LuckyClash"))
         #expect(!ClashGeodata.isRequired(yaml))
     }
 

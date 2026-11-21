@@ -1,5 +1,5 @@
 import Testing
-@testable import LuckyCat
+@testable import LuckyClash
 
 struct ClashModeOverrideTests {
     @Test func replacesTopLevelMode() {

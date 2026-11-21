@@ -110,7 +110,7 @@ enum PrototypeError: Int, Error, CustomNSError, LocalizedError {
     case profileStorage
     case invalidRulePlan
 
-    static let errorDomain = "com.luckyfish.LuckyCat.Tunnel"
+    static let errorDomain = "com.luckyfish.LuckyClash.Tunnel"
     var errorCode: Int { rawValue }
     var errorUserInfo: [String: Any] { [NSLocalizedDescriptionKey: errorDescription ?? ""] }
 
@@ -122,7 +122,7 @@ enum PrototypeError: Int, Error, CustomNSError, LocalizedError {
         case .networkSettings: "iOS 无法应用隧道网络设置。"
         case .handshakeTimeout: "WireGuard 握手超时，请核对远端地址、UDP 端口和密钥。"
         case .startCancelled: "连接启动已取消。"
-        case .duplicateConfiguration: "发现多个 LuckyCat VPN 配置，请在系统设置中保留一个。"
+        case .duplicateConfiguration: "发现多个 LuckyClash VPN 配置，请在系统设置中保留一个。"
         case .sharedContainerUnavailable: "无法打开共享配置目录，请核对 App Group 签名。"
         case .activeConfiguration: "请先断开 VPN，然后再删除配置。"
         case .profileStorage: "无法读写本地配置，请检查设备存储后重试。"
@@ -145,7 +145,7 @@ enum PrototypeStore {
     static let revisionKey = "prototypeRevision"
     static let configurationIdentifierKey = "configurationIdentifier"
     static let configurationIdentifier = "wireguard-baseline-v1"
-    private static let service = "com.luckyfish.LuckyCat.WireGuardPrototype"
+    private static let service = "com.luckyfish.LuckyClash.WireGuardPrototype"
 
     static func save<Value: Encodable>(_ value: Value, revision: UUID) throws {
         var attributes = try query(for: revision)

@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import LuckyCat
+@testable import LuckyClash
 
 struct ClashLiveParsingTests {
     @Test func parsesConnectionSnapshot() throws {
@@ -11,7 +11,7 @@ struct ClashLiveParsingTests {
         "host":"www.youtube.com","dnsMode":"fake-ip","sniffHost":"www.youtube.com",\
         "destinationGeoIP":["US"],"remoteDestination":"142.250.72.14:443",\
         "processPath":"/Applications/Safari.app"},"upload":11,"download":22,\
-        "start":"2026-11-21T08:30:00.123456789+08:00","chains":["LuckyCat","香港 01"],\
+        "start":"2026-11-21T08:30:00.123456789+08:00","chains":["LuckyClash","香港 01"],\
         "rule":"DomainSuffix","rulePayload":"youtube.com"}]}
         """
         let snapshot = try #require(ClashLiveParsing.snapshot(from: json))
@@ -26,7 +26,7 @@ struct ClashLiveParsingTests {
         #expect(connection.destinationWithPort == "www.youtube.com:443")
         #expect(connection.outboundName == "香港 01")
         #expect(connection.ruleSummary == "DomainSuffix youtube.com")
-        #expect(connection.chains == ["LuckyCat", "香港 01"])
+        #expect(connection.chains == ["LuckyClash", "香港 01"])
         #expect(connection.download == 22)
         #expect(connection.upload == 11)
         #expect(connection.start != nil)

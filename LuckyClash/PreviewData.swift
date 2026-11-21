@@ -49,7 +49,7 @@ enum PreviewSamples {
 
     static let groups: [ClashImportGroup] = [
         ClashImportGroup(
-            name: "LuckyCat",
+            name: "LuckyClash",
             type: "select",
             members: ["自动选择", hongKong.name, japan.name, singapore.name, losAngeles.name]
         ),
@@ -98,7 +98,7 @@ enum PreviewSamples {
             rules: nil,
             engine: .clash,
             clashRevision: revision,
-            clashGroup: "LuckyCat",
+            clashGroup: "LuckyClash",
             clashGroups: groups,
             subscription: subscription(),
             autoUpdate: true
@@ -185,14 +185,14 @@ enum PreviewSamples {
                 id: "A11CE000-0000-0000-0000-000000000201",
                 host: "www.youtube.com", address: "142.250.72.14", port: "443",
                 rule: "DomainSuffix", rulePayload: "youtube.com",
-                chains: ["LuckyCat", hongKong.name], download: 4_312_960, upload: 88_320,
+                chains: ["LuckyClash", hongKong.name], download: 4_312_960, upload: 88_320,
                 network: "tcp", type: "HTTPS"
             ),
             connection(
                 id: "A11CE000-0000-0000-0000-000000000202",
                 host: "github.com", address: "140.82.112.3", port: "443",
                 rule: "DomainSuffix", rulePayload: "github.com",
-                chains: ["LuckyCat", japan.name], download: 912_384, upload: 41_472,
+                chains: ["LuckyClash", japan.name], download: 912_384, upload: 41_472,
                 network: "tcp", type: "HTTPS"
             ),
             connection(

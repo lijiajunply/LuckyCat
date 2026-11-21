@@ -1053,7 +1053,7 @@ final class PrototypeVPN {
     ) async throws -> NETunnelProviderManager {
         let provider = NETunnelProviderProtocol()
         provider.providerBundleIdentifier = try Self.providerIdentifier()
-        provider.serverAddress = "LuckyCat"
+        provider.serverAddress = "LuckyClash"
         provider.providerConfiguration = [
             PrototypeStore.configurationIdentifierKey: PrototypeStore.configurationIdentifier,
             ClashTunnelStore.engineKey: ClashTunnelStore.engineClash,
@@ -1064,7 +1064,7 @@ final class PrototypeVPN {
             ClashTunnelStore.modeKey: library.trafficMode.rawValue
         ]
         manager.protocolConfiguration = provider
-        manager.localizedDescription = "LuckyCat · Clash"
+        manager.localizedDescription = "LuckyClash"
         manager.isEnabled = true
         manager.isOnDemandEnabled = false
         try await manager.saveToPreferences()

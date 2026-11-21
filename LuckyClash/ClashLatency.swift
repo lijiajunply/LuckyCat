@@ -53,7 +53,7 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
     nonisolated(unsafe) private static var setupDone = false
     nonisolated(unsafe) private static var setupFailure: Error?
 
-    private let queue = DispatchQueue(label: "com.luckyfish.LuckyCat.latency")
+    private let queue = DispatchQueue(label: "com.luckyfish.LuckyClash.latency")
     private let stateLock = NSLock()
     private var cancelRequested = false
 
@@ -166,7 +166,7 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
     ) -> [String: Int] {
         let box = ClientBox(client: client)
         let results = DelayResults()
-        let workers = DispatchQueue(label: "com.luckyfish.LuckyCat.latency.tests", attributes: .concurrent)
+        let workers = DispatchQueue(label: "com.luckyfish.LuckyClash.latency.tests", attributes: .concurrent)
         let group = DispatchGroup()
         let semaphore = DispatchSemaphore(
             value: max(1, min(maximumConcurrentTests, nodes.count))
@@ -254,7 +254,7 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
         root = URL(fileURLWithPath: "/tmp/lc-latency-engine", isDirectory: true)
         #else
         guard let container = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyCat"
+            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyClash"
         ) else {
             throw ClashLatencyFailure.storage
         }
@@ -367,7 +367,7 @@ private nonisolated final class LatencyAPIHandler: NSObject, ClashAPIClientHandl
 // MARK: - Platform
 
 private nonisolated final class LatencyPlatform: NSObject, ClashPlatformInterfaceProtocol {
-    private let pathQueue = DispatchQueue(label: "com.luckyfish.LuckyCat.latency.path")
+    private let pathQueue = DispatchQueue(label: "com.luckyfish.LuckyClash.latency.path")
     private let lock = NSLock()
     private var monitor: NWPathMonitor?
     private var listener: (any ClashInterfaceUpdateListenerProtocol)?

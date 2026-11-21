@@ -1,9 +1,9 @@
 import Foundation
 import Testing
-@testable import LuckyCat
+@testable import LuckyClash
 
 @MainActor
-struct LuckyCatTests {
+struct LuckyClashTests {
     @Test func acceptsIPv6EndpointAndUsesBothDefaultRoutes() throws {
         let configuration = try PrototypeConfiguration.decode(try testJSON())
         #expect(configuration.endpoint == "[2001:db8:1::30]:51820")

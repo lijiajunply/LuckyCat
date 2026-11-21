@@ -1,4 +1,4 @@
-module luckycat.local/wireguardbridge
+module luckyclash.local/wireguardbridge
 
 go 1.26.1
 

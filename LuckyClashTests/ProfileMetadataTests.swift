@@ -1,7 +1,7 @@
 import Foundation
 import NetworkExtension
 import Testing
-@testable import LuckyCat
+@testable import LuckyClash
 
 @MainActor
 struct ProfileMetadataTests {

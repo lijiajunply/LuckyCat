@@ -39,7 +39,7 @@ nonisolated final class ClashLiveClient: @unchecked Sendable {
         return nil
         #else
         guard let root = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyCat"
+            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyClash"
         ) else { return nil }
         return root.appending(path: "clash.sock").path
         #endif
@@ -54,7 +54,7 @@ nonisolated final class ClashLiveClient: @unchecked Sendable {
     private static let logLevel = "info"
     private static let statusInterval: Int64 = 1000
 
-    private let queue = DispatchQueue(label: "com.luckyfish.LuckyCat.clash.live")
+    private let queue = DispatchQueue(label: "com.luckyfish.LuckyClash.clash.live")
     private let stateLock = NSLock()
     private var client: ClashAPIClient?
     private var handler: LiveHandler?
@@ -320,7 +320,7 @@ nonisolated final class ClashLiveClient: @unchecked Sendable {
         let box = ClientBox(client: client)
         let results = DelayResults()
         let workers = DispatchQueue(
-            label: "com.luckyfish.LuckyCat.live.tests", attributes: .concurrent
+            label: "com.luckyfish.LuckyClash.live.tests", attributes: .concurrent
         )
         let group = DispatchGroup()
         let semaphore = DispatchSemaphore(

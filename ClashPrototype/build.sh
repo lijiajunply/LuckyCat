@@ -4,7 +4,7 @@ set -eu
 export GOTOOLCHAIN=local GOWORK=off GOFLAGS=-mod=readonly
 
 prototype_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
-work_dir=$(mktemp -d "${TMPDIR:-/tmp}/luckycat-clash.XXXXXXXX")
+work_dir=$(mktemp -d "${TMPDIR:-/tmp}/luckyclash-clash.XXXXXXXX")
 echo "Clash prototype workspace: $work_dir"
 
 sdk_tag=v1.19.34-clash.1
@@ -81,7 +81,7 @@ cat "$work_dir/sdk.sha256"
         -run '^(TestControlledWireGuardInterop|TestYAMLJSONBridgeOutputIsDeterministic|TestStartSurfacesPacketFlowBridgeDupFailure)$' .
 )
 
-install_dir="${LUCKCAT_CLASH_FRAMEWORK_DIR:-$prototype_dir/../Frameworks}"
+install_dir="${LUCKYCLASH_CLASH_FRAMEWORK_DIR:-$prototype_dir/../Frameworks}"
 mkdir -p "$install_dir"
 rm -rf "$install_dir/Clash.xcframework"
 cp -R "$framework" "$install_dir/Clash.xcframework"

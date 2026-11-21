@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "80D8862B830B05A010037E8D"
-               BuildableName = "LuckyCatPacketTunnel.appex"
-               ReferencedContainer = "container:LuckyCat.xcodeproj">
+               BuildableName = "LuckyClashPacketTunnel.appex"
+               ReferencedContainer = "container:LuckyClash.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
          <BuildActionEntry
@@ -29,8 +29,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A8862B830B05A010037E8CD"
-               BuildableName = "LuckyCat.app"
-               ReferencedContainer = "container:LuckyCat.xcodeproj">
+               BuildableName = "LuckyClash.app"
+               ReferencedContainer = "container:LuckyClash.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -60,8 +60,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A8862B830B05A010037E8CD"
-            BuildableName = "LuckyCat.app"
-            ReferencedContainer = "container:LuckyCat.xcodeproj">
+            BuildableName = "LuckyClash.app"
+            ReferencedContainer = "container:LuckyClash.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -78,8 +78,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A8862B830B05A010037E8CD"
-            BuildableName = "LuckyCat.app"
-            ReferencedContainer = "container:LuckyCat.xcodeproj">
+            BuildableName = "LuckyClash.app"
+            ReferencedContainer = "container:LuckyClash.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

@@ -7,13 +7,13 @@ import UIKit
 nonisolated enum QRCodePayload {
     /// Extracts the subscription URL from a FlClash-style QR payload. The code
     /// may hold a plain HTTPS link or a `clash://install-config?url=` /
-    /// `luckycat://install-config?url=` deep link.
+    /// `luckyclash://install-config?url=` deep link.
     static func subscriptionURL(from text: String) -> URL? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         if let components = URLComponents(string: trimmed),
            let scheme = components.scheme?.lowercased(),
-           ["clash", "luckycat"].contains(scheme) {
+           ["clash", "luckyclash"].contains(scheme) {
             let target = components.queryItems?
                 .first(where: { $0.name.lowercased() == "url" })?.value
             return target.flatMap { RemoteImport.url(from: $0) }

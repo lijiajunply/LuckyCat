@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A8862B830B05A010037E8CD"
-               BuildableName = "LuckyCat.app"
-               ReferencedContainer = "container:LuckyCat.xcodeproj">
+               BuildableName = "LuckyClash.app"
+               ReferencedContainer = "container:LuckyClash.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -34,8 +34,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A8862C730B05A020037E8CD"
-               BuildableName = "LuckyCatTests.xctest"
-               ReferencedContainer = "container:LuckyCat.xcodeproj">
+               BuildableName = "LuckyClashTests.xctest"
+               ReferencedContainer = "container:LuckyClash.xcodeproj">
             </BuildableReference>
          </TestableReference>
          <TestableReference
@@ -43,8 +43,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "9A8862D130B05A020037E8CD"
-               BuildableName = "LuckyCatUITests.xctest"
-               ReferencedContainer = "container:LuckyCat.xcodeproj">
+               BuildableName = "LuckyClashUITests.xctest"
+               ReferencedContainer = "container:LuckyClash.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -65,8 +65,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A8862B830B05A010037E8CD"
-            BuildableName = "LuckyCat.app"
-            ReferencedContainer = "container:LuckyCat.xcodeproj">
+            BuildableName = "LuckyClash.app"
+            ReferencedContainer = "container:LuckyClash.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -81,8 +81,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "9A8862B830B05A010037E8CD"
-            BuildableName = "LuckyCat.app"
-            ReferencedContainer = "container:LuckyCat.xcodeproj">
+            BuildableName = "LuckyClash.app"
+            ReferencedContainer = "container:LuckyClash.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

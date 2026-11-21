@@ -1,6 +1,6 @@
-# LuckyCat 标准隧道原型
+# LuckyClash 标准隧道原型
 
-此原型对应《LuckyCat iOS 技术方案与设计文档》第 1–2 周开发线，并已扩展到第五、六阶段的订阅导入与 Clash 内核。当前主 App 与扩展统一使用固定版本的 Clash 内核；导入的配置、分享链接和旧版双栈 WireGuard 配置都会转换为 Clash 配置，扩展不再链接 wireguard-go，避免同一进程出现两套 Go 运行时。旧的 WireGuard 配置会在下次刷新或连接时自动迁移。系统 VPN 状态与累计流量仍显示在主 App 中。
+此原型对应《LuckyClash iOS 技术方案与设计文档》第 1–2 周开发线，并已扩展到第五、六阶段的订阅导入与 Clash 内核。当前主 App 与扩展统一使用固定版本的 Clash 内核；导入的配置、分享链接和旧版双栈 WireGuard 配置都会转换为 Clash 配置，扩展不再链接 wireguard-go，避免同一进程出现两套 Go 运行时。旧的 WireGuard 配置会在下次刷新或连接时自动迁移。系统 VPN 状态与累计流量仍显示在主 App 中。
 
 原型配置和密钥按修订号保存在同团队共享钥匙串中，使用首次解锁后可访问的本机属性。系统 VPN 配置保存远端地址、配置标识和修订号。测试配置应在验证结束后撤销客户端公钥，并按团队流程删除原始文件。
 
@@ -8,12 +8,12 @@
 
 - 使用 Xcode 27.2、Go 1.26.1 和 iOS 27.2。本阶段沿用工程原有 iOS 部署版本。
 - 扩展在构建时编译 wireguard-go `v0.0.0-20261024220952-b3bc704ef0ee`，Go 依赖校验值见 [go.sum](../WireGuardBridge/go.sum)。Go 可执行文件需位于 PATH、`/usr/local/go/bin` 或 Homebrew 默认目录。首次构建需要下载锁定的依赖。
-- 在 Xcode 登录有权限的开发团队。给 `com.luckyfish.LuckyCat` 和 `com.luckyfish.LuckyCat.PacketTunnel` 使用同一团队下的显式 App ID，开启 Network Extensions，使用含 `packet-tunnel-provider` 的开发描述文件。两个签名产物的 `keychain-access-groups` 应含同一个展开后的 `$(AppIdentifierPrefix)com.luckyfish.LuckyCat.WireGuardPrototype`，并和两包 Info.plist 的 `PrototypeKeychainGroup` 一致。
-- 解锁并连接已注册的 iPhone，在 Xcode 选择 `LuckyCat` scheme 并运行。需要核对实际签名时，对主 App 和嵌入的 `PlugIns/LuckyCatPacketTunnel.appex` 分别运行 `codesign -d --entitlements :- <路径>`。
+- 在 Xcode 登录有权限的开发团队。给 `com.luckyfish.LuckyClash` 和 `com.luckyfish.LuckyClash.PacketTunnel` 使用同一团队下的显式 App ID，开启 Network Extensions，使用含 `packet-tunnel-provider` 的开发描述文件。两个签名产物的 `keychain-access-groups` 应含同一个展开后的 `$(AppIdentifierPrefix)com.luckyfish.LuckyClash.WireGuardPrototype`，并和两包 Info.plist 的 `PrototypeKeychainGroup` 一致。
+- 解锁并连接已注册的 iPhone，在 Xcode 选择 `LuckyClash` scheme 并运行。需要核对实际签名时，对主 App 和嵌入的 `PlugIns/LuckyClashPacketTunnel.appex` 分别运行 `codesign -d --entitlements :- <路径>`。
 
 ```sh
-xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -scheme LuckyClash -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -scheme LuckyClash -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
 (cd WireGuardBridge && go test -race ./...)
 ```
 
@@ -39,7 +39,7 @@ xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS' build CODE_SIGNI
 
 1. 在 iPhone 上访问信任的测试站点，记录连接前的网络可用性。用「文件」导入 JSON，核对远端，点击「连接」并确认数据披露和系统 VPN 授权。用远端的 `wg show` 核对该客户端的握手和收发计数。
 2. 在远端用 `tcpdump -ni wg0 'ip or ip6'` 观察隧道内流量。在 iPhone 上分别访问受控 IPv4 和 IPv6 的 TCP 服务、向受控 UDP 服务发包，并用系统解析器打开一个测试域名。使用未缓存的测试域名，同时核对 DNS 解析器收到的查询。另在远端外网接口核对 WireGuard UDP 报文和预期出站地址。
-3. 在 LuckyCat 点「断开」，确认状态回到「已断开」。用新请求复测原始网络，并确认对应测试流量已离开隧道。再连接一次，检查系统设置里仍只有一条 LuckyCat VPN 配置。
+3. 在 LuckyClash 点「断开」，确认状态回到「已断开」。用新请求复测原始网络，并确认对应测试流量已离开隧道。再连接一次，检查系统设置里仍只有一条 LuckyClash VPN 配置。
 4. 用端口不可达的测试配置检查握手超时反馈，再用正确配置确认可以连接。记录 iOS 版本、网络类型、构建版本与测试结果。捕获数据限团队环境使用。
 
 ## 2026 年 11 月 20 日验证记录
@@ -51,7 +51,7 @@ xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS' build CODE_SIGNI
 | 首次授权 | iOS 授权后成功建立隧道。首次操作期间曾显示系统配置读写失败，随后重试成功 |
 | IPv4 和 IPv6 | 原 `/128` 接口设置出现 IPv6 TCP、UDP 超时。改为 `/120` 后，连续三轮通过双栈 TCP、UDP 回显，IPv6 探测目标位于客户端 `/120` 之外 |
 | DNS | iOS 系统解析器发送 A、AAAA 查询，对端在隧道内收到并应答。App 使用解析结果完成 TCP 回显 |
-| 断开恢复 | 三轮均回到「已断开」，连接前和断开后的公网 HTTPS 探针均成功。重复连接后系统只有一条 LuckyCat VPN 配置 |
+| 断开恢复 | 三轮均回到「已断开」，连接前和断开后的公网 HTTPS 探针均成功。重复连接后系统只有一条 LuckyClash VPN 配置 |
 | 远端不可达 | 关停对端后重连，系统回到「已断开」。修复重复系统状态通知覆盖断开原因的问题后，App 显示 WireGuard 握手超时 |
 | 自动化 | iOS 27.2 模拟器用例全部通过。本地 wireguard-go 集成测试连续 20 次通过，并启用 Go race detector |
 
@@ -79,7 +79,7 @@ proxies:
     udp: true
 ```
 
-真机构建需要在主 App 和扩展的签名描述文件中加入 `group.com.luckyfish.LuckyCat`。App Group 保存带版本的快照，已有共享钥匙串组保存凭据。系统 VPN 配置通过配置 ID 和快照修订号读取对应版本。
+真机构建需要在主 App 和扩展的签名描述文件中加入 `group.com.luckyfish.LuckyClash`。App Group 保存带版本的快照，已有共享钥匙串组保存凭据。系统 VPN 配置通过配置 ID 和快照修订号读取对应版本。
 
 ## 第四阶段连接页与诊断
 
@@ -94,9 +94,9 @@ proxies:
 验证命令：
 
 ```sh
-xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
-xcodebuild -scheme LuckyCat -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
-xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -only-testing:LuckyCatTests
+xcodebuild -scheme LuckyClash -destination 'generic/platform=iOS Simulator' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -scheme LuckyClash -destination 'generic/platform=iOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild test -scheme LuckyClash -destination 'platform=iOS Simulator,name=iPhone 18 Pro' -only-testing:LuckyClashTests
 (cd WireGuardBridge && go test -race ./...)
 ```
 
@@ -104,7 +104,7 @@ xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhon
 
 ## 第五阶段 URL 导入与订阅
 
-配置页的「从 URL 导入」按 FlClash 的订阅模型工作：只接受 HTTPS（未写 scheme 时自动补 `https://`），单次下载上限 8 MB，下载过程中一旦超过上限立即取消。也支持 `clash://install-config?url=...` 与 `luckycat://install-config?url=...` 深链。支持完整 Clash YAML、base64 订阅（分享链接列表）以及单个或多个分享链接。YAML 与分享链接的识别、协议解析由固定版本的 Clash 内核完成；分享链接会转换为带 `proxies` 的配置，并生成 `LuckyCat` 选择组与 `MATCH,LuckyCat` 规则。
+配置页的「从 URL 导入」按 FlClash 的订阅模型工作：只接受 HTTPS（未写 scheme 时自动补 `https://`），单次下载上限 8 MB，下载过程中一旦超过上限立即取消。也支持 `clash://install-config?url=...` 与 `luckyclash://install-config?url=...` 深链。支持完整 Clash YAML、base64 订阅（分享链接列表）以及单个或多个分享链接。YAML 与分享链接的识别、协议解析由固定版本的 Clash 内核完成；分享链接会转换为带 `proxies` 的配置，并生成 `LuckyClash` 选择组与 `MATCH,LuckyClash` 规则。
 
 订阅响应头会被解析并只保存在本机：`subscription-userinfo`（上传/下载/总量/到期）、`profile-update-interval`（小时）、`profile-title` 与 `content-disposition`（名称建议）、`profile-web-page-url`。配置页显示流量与到期时间，提供「自动更新」开关和「全部更新」。自动更新只在 App 打开或手动触发时运行，间隔取响应头，缺省 24 小时。链接与配置内容不写入诊断。
 

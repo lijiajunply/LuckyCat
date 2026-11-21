@@ -2,7 +2,7 @@ import Foundation
 import NetworkExtension
 
 final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
-    private let lifecycle = DispatchQueue(label: "com.luckyfish.LuckyCat.PacketTunnel")
+    private let lifecycle = DispatchQueue(label: "com.luckyfish.LuckyClash.PacketTunnel")
     private var clash: ClashEngine?
     private var startCompletion: ((Error?) -> Void)?
 

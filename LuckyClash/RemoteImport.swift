@@ -55,7 +55,7 @@ enum RemoteImport {
             throw Failure.insecureScheme
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.setValue("LuckyCat/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
 
         if let session {
             return try await download(request, with: session)
@@ -70,7 +70,7 @@ enum RemoteImport {
             throw Failure.insecureScheme
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.setValue("LuckyCat/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
         return try await download(request, configuration: configuration)
     }
 

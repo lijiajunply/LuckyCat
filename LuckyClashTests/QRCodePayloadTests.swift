@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import LuckyCat
+@testable import LuckyClash
 
 struct QRCodePayloadTests {
     @Test func extractsSubscriptionFromDeepLink() {

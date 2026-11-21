@@ -10,6 +10,6 @@
         <string>$(PRODUCT_MODULE_NAME).PacketTunnelProvider</string>
     </dict>
     <key>PrototypeKeychainGroup</key>
-    <string>$(AppIdentifierPrefix)com.luckyfish.LuckyCat.WireGuardPrototype</string>
+    <string>$(AppIdentifierPrefix)com.luckyfish.LuckyClash.WireGuardPrototype</string>
 </dict>
 </plist>

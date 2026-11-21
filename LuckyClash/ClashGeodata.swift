@@ -99,7 +99,7 @@ enum ClashGeodata {
         let root = URL.applicationSupportDirectory
         #else
         guard let root = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyCat"
+            forSecurityApplicationGroupIdentifier: "group.com.luckyfish.LuckyClash"
         ) else {
             throw PrototypeError.sharedContainerUnavailable
         }

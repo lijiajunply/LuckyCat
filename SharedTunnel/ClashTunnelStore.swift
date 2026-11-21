@@ -14,7 +14,7 @@ enum ClashTunnelStore {
     static let selectedNodeKey = "clashSelectedNode"
     static let modeKey = "clashMode"
 
-    private static let group = "group.com.luckyfish.LuckyCat"
+    private static let group = "group.com.luckyfish.LuckyClash"
 
     static func save(_ text: String, profileID: UUID, revision: UUID) throws {
         guard let data = text.data(using: .utf8),

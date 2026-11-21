@@ -1,13 +1,13 @@
 //
-//  LuckyCatUITests.swift
-//  LuckyCatUITests
+//  LuckyClashUITests.swift
+//  LuckyClashUITests
 //
 //  Created by 李嘉俊 on 2026/11/20.
 //
 
 import XCTest
 
-final class LuckyCatUITests: XCTestCase {
+final class LuckyClashUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

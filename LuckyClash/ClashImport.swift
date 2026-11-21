@@ -21,7 +21,7 @@ enum ClashImport {
     nonisolated static let maximumBytes = RemoteImport.maximumBytes
     nonisolated static let maximumNodes = 4096
     nonisolated private static let defaultDNS = ["223.5.5.5", "119.29.29.29"]
-    nonisolated private static let generatedGroupName = "LuckyCat"
+    nonisolated private static let generatedGroupName = "LuckyClash"
 
     enum Failure: LocalizedError, Equatable {
         case tooLarge

@@ -8,7 +8,7 @@ four-byte address-family header the core expects.
 
 The source is licensed GPL-3.0; see `LICENSE`. The same license covers the
 Clash core framework that `ClashPrototype/build.sh` produces. Check the
-distribution requirements in [docs/LuckyCat-Clash-Prototype.md](../docs/LuckyCat-Clash-Prototype.md)
+distribution requirements in [docs/LuckyClash-Clash-Prototype.md](../docs/LuckyClash-Clash-Prototype.md)
 before shipping a build that includes these components.
 
 The upstream revision is pinned by `ClashPrototype/sources.sha256`. Do not edit

@@ -99,7 +99,7 @@ struct ConnectionPage: View {
                     }
                 }
             }
-            .navigationTitle("LuckyCat")
+            .navigationTitle("LuckyClash")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     addProfileMenu
@@ -367,5 +367,5 @@ struct ConnectionPage: View {
 }
 
 enum AppDisclosure {
-    static let text = "LuckyCat 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。网络页的连接与日志只保留在内存中。LuckyCat 不上传配置、流量或诊断。"
+    static let text = "LuckyClash 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。网络页的连接与日志只保留在内存中。LuckyClash 不上传配置、流量或诊断。"
 }

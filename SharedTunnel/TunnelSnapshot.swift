@@ -5,7 +5,7 @@ struct TunnelSnapshot: Codable {
     static let supportedSchemas: Set<Int> = [1, 2]
     static let profileKey = "profileID"
     static let revisionKey = "snapshotRevision"
-    private static let group = "group.com.luckyfish.LuckyCat"
+    private static let group = "group.com.luckyfish.LuckyClash"
 
     let schemaVersion: Int
     let profileID: UUID

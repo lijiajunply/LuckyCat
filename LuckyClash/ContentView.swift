@@ -143,9 +143,9 @@ struct ContentView: View {
     }
 
     /// Supports `clash://install-config?url=<subscription>` and
-    /// `luckycat://install-config?url=<subscription>` like FlClash.
+    /// `luckyclash://install-config?url=<subscription>` like FlClash.
     private func handleOpenURL(_ url: URL) {
-        guard ["clash", "luckycat"].contains(url.scheme?.lowercased() ?? "") else { return }
+        guard ["clash", "luckyclash"].contains(url.scheme?.lowercased() ?? "") else { return }
         let target = URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "url" })?.value
         guard let target, RemoteImport.url(from: target) != nil else { return }
