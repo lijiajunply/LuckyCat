@@ -12,6 +12,11 @@ struct ProfilesView: View {
     var body: some View {
         NavigationStack {
             List {
+                if let message = vpn.message {
+                    Section {
+                        MessageLabel(text: message)
+                    }
+                }
                 if let profile {
                     if let groups = profile.clashGroups, !groups.isEmpty {
                         groupsSection(profile: profile, groups: groups)
@@ -76,7 +81,7 @@ struct ProfilesView: View {
                 Image(systemName: "speedometer")
                     .accessibilityLabel("延迟测试")
             }
-            .disabled(vpn.busy || vpn.isActive)
+            .disabled(vpn.busy)
             .accessibilityIdentifier("latency-test-toolbar")
         }
     }
@@ -135,13 +140,11 @@ struct ProfilesView: View {
             }
         } header: {
             Text("策略组")
-        } footer: {
-            Text("进入策略组可以查看成员、当前选择和每个节点的延迟。")
         }
     }
 
     @ViewBuilder private func nodesSection(_ profile: Profile) -> some View {
-        Section("节点") {
+        Section {
             if profile.nodes.isEmpty {
                 Text("该配置没有本地节点。节点可能由 proxy-providers 在连接时加载。")
                     .foregroundStyle(.secondary)
@@ -149,6 +152,14 @@ struct ProfilesView: View {
                 ForEach(profile.nodes) { node in
                     ProfileNodeRow(vpn: vpn, profile: profile, node: node)
                 }
+            }
+        } header: {
+            Text("节点")
+        } footer: {
+            if vpn.isActive && vpn.canSwitchNodes(for: profile.id) {
+                Text("连接中切换会立即应用到新连接，已有连接保持原节点。")
+            } else if vpn.isActive {
+                Text("断开 VPN 后才能切换其他配置的节点。")
             }
         }
     }
@@ -170,7 +181,7 @@ struct ProfileNodeRow: View {
 
     var body: some View {
         Button {
-            guard !vpn.busy, !vpn.isActive else { return }
+            guard vpn.canSwitchNodes(for: profile.id) else { return }
             vpn.select(profileID: profile.id, nodeID: node.id)
         } label: {
             HStack(spacing: 10) {
@@ -189,6 +200,8 @@ struct ProfileNodeRow: View {
                         .accessibilityLabel("当前节点")
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("node-\(profile.name)-\(node.name)")
@@ -259,6 +272,8 @@ struct ClashGroupDetailView: View {
             } footer: {
                 if !group.isSelectable {
                     Text("该策略组由内核按延迟自动选择节点，不能手动切换。")
+                } else if vpn.isActive && vpn.canSwitchNodes(for: profileID) {
+                    Text("连接中切换会立即应用到新连接，已有连接保持原节点。")
                 }
             }
         }
@@ -269,7 +284,7 @@ struct ClashGroupDetailView: View {
         if let profile, let node = profile.nodes.first(where: { $0.name == member }) {
             if group.isSelectable {
                 Button {
-                    guard !vpn.busy, !vpn.isActive else { return }
+                    guard vpn.canSwitchNodes(for: profile.id) else { return }
                     vpn.select(profileID: profile.id, nodeID: node.id, group: group.name)
                 } label: {
                     memberLabel(member, node: node, profile: profile)
@@ -308,6 +323,8 @@ struct ClashGroupDetailView: View {
                     .accessibilityLabel("当前选择")
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
     }
 }
 

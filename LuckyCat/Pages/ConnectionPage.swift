@@ -18,6 +18,11 @@ struct ConnectionPage: View {
     var body: some View {
         NavigationStack {
             List {
+                if let message = vpn.message {
+                    Section {
+                        MessageLabel(text: message)
+                    }
+                }
                 Section {
                     if vpn.library.profiles.isEmpty {
                         Button("导入配置", systemImage: "document.badge.plus") {
@@ -55,8 +60,6 @@ struct ConnectionPage: View {
                 } footer: {
                     if vpn.library.profiles.isEmpty {
                         Text("从右上角添加配置，或点击上方按钮导入。导入并选择一个配置后才能连接。")
-                    } else {
-                        Text("点击选择配置；右滑或长按可更新、编辑或删除。")
                     }
                 }
 
@@ -67,13 +70,11 @@ struct ConnectionPage: View {
                         }
                         .disabled(connectToggleDisabled)
                         .accessibilityIdentifier("connect-vpn")
-                    } footer: {
-                        if vpn.isActive {
-                            Text("断开后，iOS 可能恢复普通网络访问。")
-                        } else {
-                            Text("首次连接前会说明数据使用方式。")
-                        }
                     }
+                }
+
+                if vpn.isActive, let profile = vpn.library.selectedProfile {
+                    currentNodeSection(profile)
                 }
 
                 Section {
@@ -83,12 +84,13 @@ struct ConnectionPage: View {
                         }
                     }
                     .pickerStyle(.segmented)
-                    .disabled(vpn.busy || vpn.isActive)
+                    .disabled(vpn.busy)
                     .accessibilityIdentifier("mode-picker")
+                    Text(modeExplanation)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 } header: {
                     Text("分流模式")
-                } footer: {
-                    Text(modeExplanation)
                 }
 
                 if let issue = vpn.issue, issue != .storage {
@@ -171,6 +173,8 @@ struct ConnectionPage: View {
                         .foregroundStyle(delayColor(delay))
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("profile-\(profile.name)")
@@ -275,7 +279,72 @@ struct ConnectionPage: View {
 
     private var modeExplanation: String {
         let text = vpn.library.trafficMode.explanation
-        return vpn.isActive ? text + " 断开后可切换模式。" : text
+        return vpn.isActive ? text + " 连接中切换会立即应用到当前连接。" : text
+    }
+
+    @ViewBuilder private func currentNodeSection(_ profile: Profile) -> some View {
+        Section {
+            Button {
+                onShowProfiles()
+            } label: {
+                HStack(spacing: 10) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(profile.selectedNode?.name ?? "未选择节点")
+                            .foregroundStyle(.primary)
+                        Text(nodeSubtitle(profile))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    if let node = profile.selectedNode {
+                        LatencyBadge(
+                            state: vpn.latencyState(for: node.name, profileID: profile.id)
+                        )
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("current-node")
+            .disabled(!vpn.canSwitchNodes(for: profile.id))
+
+            Button {
+                Task { await vpn.testLatency() }
+            } label: {
+                if vpn.latencyTesting, vpn.latencyProfileID == profile.id {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.mini)
+                        Text("正在测试节点延迟…")
+                    }
+                } else {
+                    Label("延迟测试", systemImage: "speedometer")
+                }
+            }
+            .disabled(vpn.latencyTesting || vpn.busy)
+        } header: {
+            Text("当前节点")
+        } footer: {
+            Text("连接中切换节点会立即应用到新连接，已有连接保持原节点。")
+        }
+    }
+
+    private func nodeSubtitle(_ profile: Profile) -> String {
+        var parts: [String] = []
+        if let type = profile.selectedNode?.type, !type.isEmpty {
+            parts.append(type)
+        }
+        if let group = profile.clashGroup, !group.isEmpty {
+            parts.append(group)
+        }
+        if parts.isEmpty {
+            parts.append("轻点切换节点")
+        }
+        return parts.joined(separator: " · ")
     }
 
     @ViewBuilder private func recovery(_ issue: PrototypeVPN.Issue) -> some View {
@@ -298,5 +367,5 @@ struct ConnectionPage: View {
 }
 
 enum AppDisclosure {
-    static let text = "LuckyCat 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。LuckyCat 不上传配置、流量或诊断。"
+    static let text = "LuckyCat 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。网络页的连接与日志只保留在内存中。LuckyCat 不上传配置、流量或诊断。"
 }

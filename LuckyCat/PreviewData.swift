@@ -177,6 +177,88 @@ enum PreviewSamples {
         "1 条 REJECT 规则已跳过。",
     ]
 
+    // MARK: - Network
+
+    static var connections: [ClashConnection] {
+        [
+            connection(
+                id: "A11CE000-0000-0000-0000-000000000201",
+                host: "www.youtube.com", address: "142.250.72.14", port: "443",
+                rule: "DomainSuffix", rulePayload: "youtube.com",
+                chains: ["LuckyCat", hongKong.name], download: 4_312_960, upload: 88_320,
+                network: "tcp", type: "HTTPS"
+            ),
+            connection(
+                id: "A11CE000-0000-0000-0000-000000000202",
+                host: "github.com", address: "140.82.112.3", port: "443",
+                rule: "DomainSuffix", rulePayload: "github.com",
+                chains: ["LuckyCat", japan.name], download: 912_384, upload: 41_472,
+                network: "tcp", type: "HTTPS"
+            ),
+            connection(
+                id: "A11CE000-0000-0000-0000-000000000203",
+                host: "", address: "119.29.29.29", port: "53",
+                rule: "MATCH", rulePayload: "",
+                chains: ["DIRECT"], download: 2_048, upload: 1_024,
+                network: "udp", type: "DNS"
+            ),
+        ]
+    }
+
+    private static func connection(
+        id: String,
+        host: String,
+        address: String,
+        port: String,
+        rule: String,
+        rulePayload: String,
+        chains: [String],
+        download: UInt64,
+        upload: UInt64,
+        network: String,
+        type: String
+    ) -> ClashConnection {
+        var connection = ClashConnection(id: id)
+        connection.metadata.host = host
+        connection.metadata.destinationIP = address
+        connection.metadata.destinationPort = port
+        connection.metadata.sourceIP = "192.168.1.12"
+        connection.metadata.sourcePort = "51234"
+        connection.metadata.network = network
+        connection.metadata.type = type
+        connection.metadata.dnsMode = "fake-ip"
+        connection.metadata.destinationGeoIP = ["US"]
+        connection.rule = rule
+        connection.rulePayload = rulePayload
+        connection.chains = chains
+        connection.download = download
+        connection.upload = upload
+        connection.start = Date().addingTimeInterval(-42)
+        return connection
+    }
+
+    static var logs: [ClashLogEntry] {
+        [
+            log("info", "[TCP] 192.168.1.12:51234 --> www.youtube.com:443 match DomainSuffix(youtube.com) using \(hongKong.name)"),
+            log("info", "[UDP] 192.168.1.12:53211 --> 119.29.29.29:53 match Match() using DIRECT"),
+            log("warning", "timeout when dialing \(losAngeles.name): context deadline exceeded"),
+            log("info", "[TCP] 192.168.1.12:51566 --> github.com:443 match DomainSuffix(github.com) using \(japan.name)"),
+            log("error", "proxy \(losAngeles.name): connection reset by peer"),
+        ]
+    }
+
+    private static func log(_ level: String, _ payload: String) -> ClashLogEntry {
+        ClashLogEntry(
+            id: UUID(),
+            date: Date().addingTimeInterval(-Double.random(in: 1...30)),
+            level: ClashLogEntry.Level(label: level),
+            payload: payload,
+            tag: payload.hasPrefix("[")
+                ? String(payload.dropFirst().prefix { $0 != "]" })
+                : nil
+        )
+    }
+
     // MARK: - Diagnostics
 
     static func diagnosticLog() -> DiagnosticLog {

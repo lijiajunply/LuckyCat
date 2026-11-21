@@ -1,0 +1,188 @@
+import Foundation
+import Observation
+
+/// In-memory state for the network page: active connections, kernel logs and
+/// live rates pushed by the tunnel's Clash core. Nothing here is persisted;
+/// destinations are cleared when the app leaves memory.
+@Observable
+final class NetworkStore {
+    enum Status: Equatable {
+        case idle
+        case waiting
+        case streaming
+    }
+
+    static let maximumLogs = 2000
+
+    private(set) var status: Status = .idle
+    private(set) var connections: [ClashConnection] = []
+    private(set) var logs: [ClashLogEntry] = []
+    private(set) var downloadTotal: UInt64 = 0
+    private(set) var uploadTotal: UInt64 = 0
+    private(set) var downloadRate: Int64 = 0
+    private(set) var uploadRate: Int64 = 0
+    private(set) var lastUpdated: Date?
+    private(set) var errorMessage: String?
+    private(set) var isRunning = false
+
+    @ObservationIgnored private let live: ClashLiveClient
+    @ObservationIgnored private var supervisor: Task<Void, Never>?
+
+    init(live: ClashLiveClient) {
+        self.live = live
+        live.configure(
+            onLog: { [weak self] entry in
+                Task { @MainActor [weak self] in self?.append(entry) }
+            },
+            onConnections: { [weak self] snapshot in
+                Task { @MainActor [weak self] in self?.apply(snapshot) }
+            },
+            onTraffic: { [weak self] rates in
+                Task { @MainActor [weak self] in self?.apply(rates) }
+            },
+            onDisconnect: { [weak self] message in
+                Task { @MainActor [weak self] in self?.handleDisconnect(message) }
+            }
+        )
+    }
+
+    // MARK: - Lifecycle
+
+    /// Starts following the tunnel's core. Idempotent; the supervisor keeps
+    /// retrying until the tunnel's socket appears and closes the session when
+    /// the tunnel goes away.
+    func start() {
+        guard !isRunning else { return }
+        isRunning = true
+        supervisor = Task { [weak self] in
+            await self?.supervise()
+        }
+    }
+
+    func stop() {
+        guard isRunning else { return }
+        isRunning = false
+        supervisor?.cancel()
+        supervisor = nil
+        if status == .streaming || status == .waiting {
+            status = .idle
+        }
+    }
+
+    private func supervise() async {
+        var holding = false
+        defer { if holding { live.release() } }
+
+        while !Task.isCancelled {
+            if !holding {
+                do {
+                    try await live.acquire()
+                    holding = true
+                    if Task.isCancelled { return }
+                    if status != .streaming { status = .streaming }
+                    errorMessage = nil
+                } catch {
+                    if Task.isCancelled { return }
+                    status = .waiting
+                    try? await Task.sleep(for: .seconds(1))
+                    continue
+                }
+            }
+
+            if !live.isOpen {
+                live.release()
+                holding = false
+                status = .waiting
+                try? await Task.sleep(for: .seconds(1))
+                continue
+            }
+
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    // MARK: - Actions
+
+    func closeConnection(_ id: String) async {
+        do {
+            try await live.closeConnection(id: id)
+            connections.removeAll { $0.id == id }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func closeAllConnections() async {
+        do {
+            try await live.closeAllConnections()
+            connections = []
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func clearLogs() {
+        logs.removeAll()
+    }
+
+    func dismissError() {
+        errorMessage = nil
+    }
+
+    // MARK: - Stream updates
+
+    private func append(_ entry: ClashLogEntry) {
+        guard isRunning else { return }
+        logs.append(entry)
+        if logs.count > Self.maximumLogs {
+            logs.removeFirst(logs.count - Self.maximumLogs)
+        }
+    }
+
+    private func apply(_ snapshot: ClashConnectionsSnapshot) {
+        connections = snapshot.connections
+        downloadTotal = snapshot.downloadTotal
+        uploadTotal = snapshot.uploadTotal
+        lastUpdated = .now
+        if isRunning, status != .streaming { status = .streaming }
+    }
+
+    private func apply(_ rates: ClashTrafficRates) {
+        uploadRate = rates.upload
+        downloadRate = rates.download
+        if isRunning, status != .streaming { status = .streaming }
+    }
+
+    private func handleDisconnect(_ message: String?) {
+        if isRunning {
+            status = .waiting
+        }
+        if let message, !message.isEmpty {
+            errorMessage = message
+        }
+    }
+}
+
+#if DEBUG
+extension NetworkStore {
+    /// Seeds the page for SwiftUI previews without opening a socket.
+    func seed(
+        status: Status = .streaming,
+        connections: [ClashConnection] = PreviewSamples.connections,
+        logs: [ClashLogEntry] = PreviewSamples.logs,
+        downloadTotal: UInt64 = 86_000_000,
+        uploadTotal: UInt64 = 12_000_000,
+        downloadRate: Int64 = 240_000,
+        uploadRate: Int64 = 32_000
+    ) {
+        self.status = status
+        self.connections = connections
+        self.logs = logs
+        self.downloadTotal = downloadTotal
+        self.uploadTotal = uploadTotal
+        self.downloadRate = downloadRate
+        self.uploadRate = uploadRate
+        lastUpdated = .now
+    }
+}
+#endif

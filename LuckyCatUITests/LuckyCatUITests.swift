@@ -29,7 +29,7 @@ final class LuckyCatUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.segmentedControls["mode-picker"].waitForExistence(timeout: 5))
-        app.tabBars.buttons["配置"].tap()
+        app.buttons["add-profile"].tap()
         XCTAssertTrue(app.buttons["从文件导入"].exists)
         XCTAssertTrue(app.buttons["从 URL 导入"].exists)
         app.buttons["粘贴配置"].tap()
@@ -43,21 +43,21 @@ final class LuckyCatUITests: XCTestCase {
         """)
         app.buttons["预览"].tap()
 
-        let nameField = app.textFields["配置名称"]
+        let nameField = app.textFields["import-name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 10))
         nameField.tap()
         nameField.typeText(name)
         app.buttons["保存"].tap()
-        XCTAssertTrue(app.staticTexts[name].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["profile-\(name)"].waitForExistence(timeout: 5))
         app.terminate()
         app.launch()
 
         XCTAssertTrue(app.switches["connect-vpn"].waitForExistence(timeout: 5))
         app.tabBars.buttons["配置"].tap()
-        XCTAssertTrue(app.staticTexts[name].exists)
+        XCTAssertTrue(app.buttons["delete-profile-\(name)"].exists)
         app.buttons["delete-profile-\(name)"].tap()
         app.alerts.buttons["删除"].tap()
-        XCTAssertTrue(app.staticTexts[name].waitForNonExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["delete-profile-\(name)"].waitForNonExistence(timeout: 5))
     }
 
     @MainActor
@@ -66,7 +66,7 @@ final class LuckyCatUITests: XCTestCase {
         let name = "Swipe Fixture " + String(UUID().uuidString.prefix(8))
         app.launch()
 
-        app.tabBars.buttons["配置"].tap()
+        app.buttons["add-profile"].tap()
         app.buttons["粘贴配置"].tap()
         let editor = app.textViews["配置内容"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
@@ -77,7 +77,7 @@ final class LuckyCatUITests: XCTestCase {
         {"endpointAddress":"192.0.2.40","endpointPort":51820,"clientIPv4":"10.66.0.2","clientIPv6":"fd66::2","dnsServers":["10.66.0.1"],"privateKey":"\(privateKey)","peerPublicKey":"\(publicKey)"}
         """)
         app.buttons["预览"].tap()
-        let nameField = app.textFields["配置名称"]
+        let nameField = app.textFields["import-name"]
         XCTAssertTrue(nameField.waitForExistence(timeout: 10))
         nameField.tap()
         nameField.typeText(name)
@@ -87,10 +87,10 @@ final class LuckyCatUITests: XCTestCase {
         let row = app.buttons["profile-\(name)"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
         row.swipeRight()
-        XCTAssertTrue(app.buttons["详情"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["编辑"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["删除"].exists)
 
-        app.buttons["详情"].tap()
+        app.buttons["编辑"].tap()
         XCTAssertTrue(app.navigationBars["配置详情"].waitForExistence(timeout: 5))
         app.buttons["完成"].tap()
 
@@ -106,12 +106,28 @@ final class LuckyCatUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        app.tabBars.buttons["配置"].tap()
+        app.buttons["add-profile"].tap()
         app.buttons["从 URL 导入"].tap()
         XCTAssertTrue(app.textFields["url-field"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["url-download"].exists)
         XCTAssertFalse(app.buttons["url-download"].isEnabled)
         app.buttons["取消"].tap()
+    }
+
+    @MainActor
+    func testNetworkPageShowsIdleState() {
+        let app = XCUIApplication()
+        app.launch()
+
+        XCTAssertTrue(app.tabBars.buttons["连接"].waitForExistence(timeout: 5))
+        app.tabBars.buttons["网络"].tap()
+        XCTAssertTrue(app.navigationBars["网络日志"].waitForExistence(timeout: 5))
+        XCTAssertTrue(
+            app.staticTexts["连接 VPN 后可查看实时连接与内核日志。"].waitForExistence(timeout: 5)
+        )
+
+        app.segmentedControls["network-feed"].buttons["日志"].tap()
+        XCTAssertTrue(app.staticTexts["暂无日志"].waitForExistence(timeout: 3))
     }
 
     @MainActor

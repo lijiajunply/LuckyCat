@@ -32,6 +32,10 @@ final class PrototypeVPN {
     private(set) var updatingProfileID: UUID?
     private(set) var library = ProfileLibrary()
     let diagnostics = DiagnosticLog()
+    /// Control channel to the Clash core owned by the running packet tunnel.
+    let live: ClashLiveClient
+    /// Connections, logs and rates for the network page.
+    let network: NetworkStore
     private var libraryLoaded = false
     private(set) var importError: String?
     private(set) var traffic: Traffic?
@@ -52,6 +56,12 @@ final class PrototypeVPN {
     private var diagnosticRequest: UUID?
     private var diagnosticUnavailableRecorded = false
     @ObservationIgnored private var trafficTask: Task<Void, Never>?
+
+    init() {
+        let live = ClashLiveClient()
+        self.live = live
+        self.network = NetworkStore(live: live)
+    }
 
     var isActive: Bool {
         requestingConnection || stopRequest != nil || [.connecting, .connected, .reasserting, .disconnecting].contains(status)
@@ -240,7 +250,7 @@ final class PrototypeVPN {
     }
 
     func setMode(_ mode: TrafficMode) {
-        guard libraryLoaded, !busy, !isActive, library.mode != mode else { return }
+        guard libraryLoaded, !busy, library.mode != mode else { return }
         var updated = library
         updated.mode = mode
         do {
@@ -251,6 +261,17 @@ final class PrototypeVPN {
             record("切换分流模式")
         } catch {
             present(error)
+            return
+        }
+        guard isActive else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.live.setMode(mode)
+                self.record("分流模式已应用到当前连接")
+            } catch {
+                self.message = "分流模式已保存，但未能应用到当前连接：\(error.localizedDescription)"
+            }
         }
     }
 
@@ -433,10 +454,65 @@ final class PrototypeVPN {
     }
 
     func select(profileID: UUID, nodeID: UUID, group: String? = nil) {
-        guard libraryLoaded, !busy, !isActive,
+        guard libraryLoaded, !busy,
               let index = library.profiles.firstIndex(where: { $0.id == profileID }),
-              library.profiles[index].nodes.contains(where: { $0.id == nodeID }) else { return }
-        applySelection(index: index, nodeID: nodeID, group: group)
+              let node = library.profiles[index].nodes.first(where: { $0.id == nodeID }) else { return }
+        guard isActive else {
+            applySelection(index: index, nodeID: nodeID, group: group)
+            return
+        }
+        guard activeProfileID == profileID else {
+            message = "请先断开 VPN，再切换其他配置的节点。"
+            return
+        }
+        switchNodeOnLiveCore(profileID: profileID, node: node, group: group)
+    }
+
+    /// The active profile's node can be switched on the running core; any
+    /// other profile still needs a reconnect.
+    func canSwitchNodes(for profileID: UUID) -> Bool {
+        guard !busy else { return false }
+        guard isActive else { return true }
+        return activeProfileID == profileID
+    }
+
+    private var activeProfileID: UUID? {
+        guard let provider = manager?.protocolConfiguration as? NETunnelProviderProtocol,
+              let raw = provider.providerConfiguration?[ClashTunnelStore.profileKey] as? String else {
+            return library.selectedProfileID
+        }
+        return UUID(uuidString: raw) ?? library.selectedProfileID
+    }
+
+    private func switchNodeOnLiveCore(profileID: UUID, node: Profile.Node, group: String?) {
+        guard let profile = library.profiles.first(where: { $0.id == profileID }) else { return }
+        let targetGroup = group ?? Self.group(containing: node, in: profile.clashGroups ?? [])
+        guard let targetGroup, !targetGroup.isEmpty else {
+            // No selectable group: keep the choice for the next connection.
+            if let index = library.profiles.firstIndex(where: { $0.id == profileID }) {
+                applySelection(index: index, nodeID: node.id, group: nil)
+            }
+            message = "当前配置没有可手动切换的策略组，新的节点将在下次连接时生效。"
+            return
+        }
+        message = nil
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.live.select(group: targetGroup, name: node.name)
+                guard let index = self.library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+                self.applySelection(index: index, nodeID: node.id, group: targetGroup)
+                self.message = nil
+                self.issue = nil
+                self.record("切换节点（连接中）")
+            } catch {
+                self.message = "切换节点失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    private static func group(containing node: Profile.Node, in groups: [ClashImportGroup]) -> String? {
+        groups.first { $0.isSelectable && $0.members.contains(node.name) }?.name
     }
 
     private func applySelection(index: Int, nodeID: UUID?, group: String? = nil) {
@@ -555,20 +631,22 @@ final class PrototypeVPN {
     func cancelLatencyTest() {
         guard latencyTesting else { return }
         latencyTester.cancel()
+        live.cancelURLTests()
         message = "正在停止延迟测试…"
     }
 
-    /// Runs a URL test for every node in the selected profile through a
-    /// short-lived Clash core owned by this process. The core is configured
-    /// without listeners or rules, so it is only ever used to measure delays.
+    /// Runs a URL test for every node in the selected profile. While the
+    /// tunnel is running the test goes through its live core, so delays are
+    /// measured on the path the tunnel already uses; otherwise a short-lived
+    /// core owned by this process is used.
     func testLatency() async {
         guard !busy, !latencyTesting else { return }
-        guard !isActive else {
-            message = "请先断开 VPN，再进行延迟测试。"
-            return
-        }
         guard libraryLoaded, let profile = library.selectedProfile else {
             message = "请先在连接页选择一个配置。"
+            return
+        }
+        if isActive {
+            await testLatencyLive(profile)
             return
         }
         guard let revision = profile.clashRevision,
@@ -599,10 +677,7 @@ final class PrototypeVPN {
             latencyPending = []
         }
 
-        let testURL = profile.clashGroups?
-            .compactMap(\.testURL)
-            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            ?? ClashLatencyTester.defaultTestURL
+        let testURL = Self.testURL(for: profile)
 
         do {
             let results = try await latencyTester.measure(
@@ -626,6 +701,57 @@ final class PrototypeVPN {
             issue = Self.issue(for: error)
             record("延迟测试失败")
         }
+    }
+
+    private func testLatencyLive(_ profile: Profile) async {
+        let names = Self.uniqueNodeNames(profile)
+        guard !names.isEmpty else {
+            message = "该配置的节点由 proxy-providers 提供，无法直接测试延迟。"
+            return
+        }
+
+        latencyTesting = true
+        latencyProfileID = profile.id
+        latencyPending = Set(names)
+        latencyResults[profile.id] = [:]
+        latencyTestedAt[profile.id] = nil
+        message = nil
+        issue = nil
+        record("开始延迟测试")
+        defer {
+            latencyTesting = false
+            latencyProfileID = nil
+            latencyPending = []
+        }
+
+        do {
+            let results = try await live.urlTest(
+                names: names, testURL: Self.testURL(for: profile)
+            ) { [weak self] name, delay in
+                Task { @MainActor [weak self] in
+                    self?.applyLatency(name, delay: delay, profileID: profile.id)
+                }
+            }
+            for (name, delay) in results {
+                applyLatency(name, delay: delay, profileID: profile.id)
+            }
+            latencyTestedAt[profile.id] = Date()
+            if let current = library.profiles.first(where: { $0.id == profile.id }),
+               !hasAllLatencyResults(current, profileID: profile.id) {
+                message = "部分节点没有返回延迟。"
+            }
+            record("延迟测试完成")
+        } catch {
+            message = error.localizedDescription
+            record("延迟测试失败")
+        }
+    }
+
+    private static func testURL(for profile: Profile) -> String {
+        profile.clashGroups?
+            .compactMap(\.testURL)
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            ?? ClashLatencyTester.defaultTestURL
     }
 
     private func applyLatency(_ name: String, delay: Int, profileID: UUID) {
@@ -755,6 +881,7 @@ final class PrototypeVPN {
             let request = UUID()
             connectionRequest = request
             requestingConnection = true
+            network.start()
             do {
                 try session.startTunnel(options: nil)
                 record("发起连接")
@@ -772,11 +899,15 @@ final class PrototypeVPN {
                     if self.status == .disconnected {
                         self.message = "iOS 未启动连接，请检查系统 VPN 设置。"
                         self.issue = .permission
+                        self.network.stop()
                     }
                 }
             }
         } catch {
             present(error)
+            if !isActive {
+                network.stop()
+            }
         }
         #endif
     }
@@ -821,6 +952,7 @@ final class PrototypeVPN {
             }
         }
         syncTrafficPolling()
+        syncNetworkMonitoring()
         let update = statusChangedAt
         if current == .connecting || current == .connected || current == .reasserting {
             clearConnectionRequest()
@@ -988,6 +1120,19 @@ final class PrototypeVPN {
         self.manager = manager
         status = manager?.connection.status ?? .invalid
         syncTrafficPolling()
+        syncNetworkMonitoring()
+    }
+
+    /// Keeps the network page attached to the tunnel's core while it runs.
+    private func syncNetworkMonitoring() {
+        switch status {
+        case .connecting, .connected, .reasserting:
+            network.start()
+        case .disconnected, .invalid:
+            network.stop()
+        default:
+            break
+        }
     }
 
     private func clearConnectionRequest() {
@@ -1055,6 +1200,16 @@ extension PrototypeVPN {
         vpn.latencyTesting = latencyTesting
         vpn.latencyProfileID = latencyProfileID
         vpn.busy = busy
+        return vpn
+    }
+
+    /// Seeds the network page with sample connections and logs.
+    static func previewNetwork(status: NetworkStore.Status = .streaming) -> PrototypeVPN {
+        let vpn = PrototypeVPN()
+        vpn.library = PreviewSamples.library()
+        vpn.libraryLoaded = true
+        vpn.status = .connected
+        vpn.network.seed(status: status)
         return vpn
     }
 

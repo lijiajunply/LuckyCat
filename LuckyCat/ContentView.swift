@@ -3,7 +3,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    enum Page: Hashable { case connection, profiles, settings }
+    enum Page: Hashable { case connection, network, profiles, settings }
 
     @Environment(\.scenePhase) private var scenePhase
     @State private var vpn: PrototypeVPN
@@ -62,6 +62,9 @@ struct ContentView: View {
             )
             .tabItem { Label("配置", systemImage: "folder") }
             .tag(Page.profiles)
+            NetworkPage(vpn: vpn)
+                .tabItem { Label("网络", systemImage: "waveform.path.ecg") }
+                .tag(Page.network)
             SettingsPage(vpn: vpn)
                 .tabItem { Label("设置", systemImage: "gearshape") }
                 .tag(Page.settings)
@@ -77,17 +80,13 @@ struct ContentView: View {
                 }
             }
         }
-        .sheet(isPresented: $showingPaste, onDismiss: {
-            showingPreview = vpn.hasStagedImport
-        }) {
+        .sheet(isPresented: $showingPaste, onDismiss: presentStagedPreview) {
             PasteConfiguration(name: $pendingImportName) { text in
                 vpn.stage(Data(text.utf8))
                 return vpn.imported.isEmpty ? vpn.importError : nil
             }
         }
-        .sheet(isPresented: $showingURLImport, onDismiss: {
-            showingPreview = vpn.hasStagedImport
-        }) {
+        .sheet(isPresented: $showingURLImport, onDismiss: presentStagedPreview) {
             URLImport(vpn: vpn, name: $pendingImportName)
         }
         .sheet(isPresented: $showingQRImport, onDismiss: importQRCode) {
@@ -157,6 +156,16 @@ struct ContentView: View {
             if await vpn.importURL(target) {
                 showingPreview = true
             }
+        }
+    }
+
+    /// Opens the import preview once the source sheet has finished
+    /// dismissing; presenting a second sheet during dismissal is unreliable.
+    private func presentStagedPreview() {
+        guard vpn.hasStagedImport else { return }
+        Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            showingPreview = true
         }
     }
 
@@ -467,6 +476,10 @@ private struct ImportPreview: View {
 
 #Preview("连接 · 未配置") {
     ContentView(vpn: .preview(library: ProfileLibrary()), page: .connection)
+}
+
+#Preview("网络") {
+    ContentView(vpn: .previewNetwork(), page: .network)
 }
 
 #Preview("配置") {

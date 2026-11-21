@@ -121,7 +121,7 @@ xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhon
 - 验证：macOS 探针用 socketpair 启动内核并进入 `running`；模拟器单元与 UI 测试通过。真机 VPN 授权、NEPacketTunnelFlow 到远端的完整路径与扩展内存仍需在 iPhone 上复测。
 - 许可：Clash 内核与 Adapter 均为 GPL-3.0，外部分发前需核对 GPL、开源模式与 App Store 条款。
 
-连接页新增「规则 / 全局 / 直连」分段选择，设置对整个 App 生效并保存在 `Profiles.json`。默认「全局」保持原有行为，连接中不能切换。
+连接页新增「规则 / 全局 / 直连」分段选择，设置对整个 App 生效并保存在 `Profiles.json`。连接中切换会通过内核控制通道立即应用到运行中的内核，无需断开。
 
 | 模式 | 系统路由 |
 | --- | --- |
@@ -135,4 +135,13 @@ xcodebuild test -scheme LuckyCat -destination 'platform=iOS Simulator,name=iPhon
 
 快照 schema 升为 2，新增 `routePlan`。扩展同时接受 schema 1（按全局处理）和 schema 2；连接前 App 会按当前模式和规则重写所选修订的路由计划。`providerConfiguration` 仍只包含配置标识、配置 ID 和快照修订号。
 
-真机验证需覆盖：直连模式在系统 VPN 状态为「已连接」时不捕获流量且使用系统 DNS；规则模式仅将匹配网段送入隧道；当 `MATCH` 为代理时，DIRECT 网段能正确从默认路由中排除；远端地址在规则覆盖时仍被排除；连接中切换模式被禁用。iOS 对空 `includedRoutes` 的处理需在真机确认，若系统拒绝该设置，直连模式需要改为不启动隧道。
+真机验证需覆盖：直连模式在系统 VPN 状态为「已连接」时不捕获流量且使用系统 DNS；规则模式仅将匹配网段送入隧道；当 `MATCH` 为代理时，DIRECT 网段能正确从默认路由中排除；远端地址在规则覆盖时仍被排除；连接中切换模式能立即生效。iOS 对空 `includedRoutes` 的处理需在真机确认，若系统拒绝该设置，直连模式需要改为不启动隧道。
+
+## 第七阶段 网络日志与连接中切换
+
+- 主 App 的 `ClashLiveClient` 通过 App Group 容器内的 `clash.sock` 连接扩展持有的内核控制面（扩展的 `ClashSetup` basePath 为共享容器根目录）。它订阅 `/logs`、`/traffic`、`/memory` 与 `/connections`，不会创建第二套内核，也不改动隧道配置。
+- 「网络」页显示活动连接（目标、规则、节点链、收发字节）、实时速率与内核日志，支持搜索、按级别筛选、关闭单条或全部连接、导出日志。数据只保存在内存，不写入诊断，退出 App 后清空。
+- 连接中可直接切换「规则 / 全局 / 直连」，通过 `setMode` 应用到运行中的内核，并保存到 `Profiles.json` 供下次连接使用。扩展重启或重新连接时读取保存的模式，不依赖运行时的临时状态。
+- 连接中可切换当前配置的节点：App 先通过 `selectProxy(group, name)` 修改运行中的策略组，成功后再持久化选择；没有可手动切换的策略组时只保存选择并提示下次连接生效。
+- 延迟测试在连接中通过运行中的内核执行 `urlTest`，测得的延迟与隧道实际使用的链路一致；断开时仍使用主 App 内的临时测速内核。
+- 模拟器无法验证跨进程控制通道（扩展在模拟器使用独立容器），需在真机确认连接与日志的实时性、模式与节点切换、以及连接中的 URL 测试。
