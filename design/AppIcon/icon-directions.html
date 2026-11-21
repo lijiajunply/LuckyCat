@@ -1,0 +1,711 @@
+<title>LuckyClash 图标方案</title>
+<meta charset="utf-8">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  :root {
+    --bg: #f1f1f3;
+    --surface: #ffffff;
+    --surface-soft: #f7f7f9;
+    --ink: #15161b;
+    --muted: #5f616b;
+    --faint: #6f717c;
+    --line: rgba(21, 22, 27, 0.09);
+    --line-strong: rgba(21, 22, 27, 0.16);
+    --accent: #4b3fe0;
+    --accent-soft: rgba(75, 63, 224, 0.09);
+    --chip: rgba(21, 22, 27, 0.05);
+    --grid-line: rgba(21, 22, 27, 0.06);
+    --shadow: 0 18px 40px -18px rgba(20, 20, 45, 0.45), 0 3px 8px -2px rgba(20, 20, 45, 0.16);
+    --edge: transparent;
+    color-scheme: light;
+    --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0c0d11;
+      --surface: #17181d;
+      --surface-soft: #1d1e24;
+      --ink: #f1f1f4;
+      --muted: #a8aab5;
+      --faint: #8a8c97;
+      --line: rgba(255, 255, 255, 0.1);
+      --line-strong: rgba(255, 255, 255, 0.18);
+      --accent: #8f86ff;
+      --accent-soft: rgba(143, 134, 255, 0.14);
+      --chip: rgba(255, 255, 255, 0.07);
+      --grid-line: rgba(255, 255, 255, 0.07);
+      --shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8), 0 3px 8px -2px rgba(0, 0, 0, 0.5);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0c0d11;
+    --surface: #17181d;
+    --surface-soft: #1d1e24;
+    --ink: #f1f1f4;
+    --muted: #a8aab5;
+    --faint: #8a8c97;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-strong: rgba(255, 255, 255, 0.18);
+    --accent: #8f86ff;
+    --accent-soft: rgba(143, 134, 255, 0.14);
+    --chip: rgba(255, 255, 255, 0.07);
+    --grid-line: rgba(255, 255, 255, 0.07);
+    --shadow: 0 18px 40px -18px rgba(0, 0, 0, 0.8), 0 3px 8px -2px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.6;
+  }
+  .page {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding-left: max(20px, env(safe-area-inset-left, 0px));
+    padding-right: max(20px, env(safe-area-inset-right, 0px));
+    padding-block: clamp(28px, 5vw, 64px) 96px;
+  }
+
+  /* ---------- masthead ---------- */
+  .meta-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+  h1 {
+    margin: 44px 0 0;
+    font-size: clamp(2.4rem, 6.4vw, 4.1rem);
+    line-height: 1.12;
+    letter-spacing: -0.035em;
+    font-weight: 700;
+    text-wrap: balance;
+  }
+  .decision {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 18px 0 0;
+    padding: 7px 12px 7px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 550;
+    letter-spacing: 0.02em;
+  }
+  .decision .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .lede {
+    margin: 20px 0 0;
+    max-width: 34em;
+    font-size: clamp(1rem, 1.7vw, 1.12rem);
+    color: var(--muted);
+    line-height: 1.7;
+    text-wrap: pretty;
+  }
+  .contact-sheet {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px 26px;
+    margin-top: 46px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+  }
+  .contact-item { display: grid; gap: 8px; justify-items: center; }
+  .contact-item .cap { font-size: 10px; letter-spacing: 0.12em; color: var(--faint); font-variant-numeric: tabular-nums; }
+
+  /* ---------- icons ---------- */
+  .icon { display: block; width: var(--sz, 96px); aspect-ratio: 1; filter: drop-shadow(var(--shadow)); --edge: transparent; }
+  .icon svg { display: block; width: 100%; height: 100%; color: var(--mark, #fff); overflow: visible; }
+  .icon .edge { stroke: var(--edge); stroke-width: 2.5; fill: none; }
+  .icon.light { --edge: rgba(21, 22, 27, 0.1); }
+  .icon--flat { filter: none; }
+
+  /* ---------- sections ---------- */
+  section { margin-top: clamp(64px, 9vw, 104px); }
+  .sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 24px; padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+  .sec-label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .sec-title { font-size: clamp(1.4rem, 3vw, 1.9rem); letter-spacing: -0.02em; margin: 0; font-weight: 650; }
+  .sec-note { color: var(--faint); font-size: 12.5px; max-width: 30em; text-align: right; }
+  @media (max-width: 640px) { .sec-note { text-align: left; max-width: none; } }
+
+  /* ---------- concept cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-top: 20px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 22px 22px 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .num { font-family: var(--font-mono); font-size: 11px; color: var(--accent); letter-spacing: 0.1em; }
+  .card h3 { margin: 0; font-size: 1.05rem; font-weight: 650; letter-spacing: -0.01em; }
+  .card .en { font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); display: block; margin-top: 3px; }
+  .hero-icon { display: flex; justify-content: center; padding: 26px 0 22px; }
+  .card p { margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.68; text-wrap: pretty; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .tag { font-size: 11px; padding: 3px 9px; border-radius: 999px; background: var(--chip); color: var(--muted); white-space: nowrap; }
+  .tag.hot { background: var(--accent-soft); color: var(--accent); font-weight: 550; }
+  .size-strip { margin-top: auto; padding-top: 18px; display: flex; align-items: flex-end; gap: 18px; border-top: 1px solid var(--line); }
+  .size-strip .item { display: grid; gap: 7px; justify-items: center; }
+  .size-strip .px { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); letter-spacing: 0.04em; }
+
+  /* ---------- size matrix ---------- */
+  .matrix-wrap { margin-top: 20px; overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; }
+  table.matrix { border-collapse: collapse; width: 100%; min-width: 640px; }
+  .matrix th, .matrix td { padding: 14px 16px; text-align: center; border-bottom: 1px solid var(--line); }
+  .matrix th:first-child, .matrix td:first-child { text-align: left; min-width: 150px; }
+  .matrix thead th { font-size: 10.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--faint); font-weight: 500; }
+  .matrix tbody tr:last-child td { border-bottom: none; }
+  .matrix .name { font-size: 13.5px; font-weight: 600; }
+  .matrix .name span { display: block; font-weight: 400; font-size: 10px; letter-spacing: 0.14em; color: var(--faint); text-transform: uppercase; margin-top: 2px; }
+  .matrix .cell { display: flex; justify-content: center; }
+  .matrix td:last-child .icon { filter: none; }
+
+  /* ---------- recommendation ---------- */
+  .rec-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px; align-items: start; margin-top: 26px; }
+  @media (max-width: 760px) { .rec-grid { grid-template-columns: 1fr; gap: 30px; } }
+  .billboard {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    padding: 40px;
+    display: grid;
+    justify-items: center;
+    gap: 26px;
+  }
+  .billboard .cap { font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); }
+  .rec-copy h2 { margin: 0; font-size: clamp(1.7rem, 4vw, 2.5rem); letter-spacing: -0.03em; font-weight: 700; }
+  .rec-copy .kicker { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  .rec-copy p { color: var(--muted); font-size: 0.98rem; line-height: 1.75; text-wrap: pretty; }
+  .rec-copy p strong { color: var(--ink); font-weight: 600; }
+
+  .appearance-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; margin-top: 18px; }
+  @media (max-width: 760px) { .appearance-grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
+  .panel .swatches { gap: 30px; }
+  .sub-label { font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint); margin-bottom: 12px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 22px; }
+  .swatch { display: grid; gap: 8px; justify-items: center; }
+  .swatch .nm { font-size: 11.5px; color: var(--muted); }
+  .swatch .hex { font-family: var(--font-mono); font-size: 9.5px; color: var(--faint); letter-spacing: 0.02em; }
+
+  .plan-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr); gap: 40px; align-items: center; margin-top: 44px; }
+  @media (max-width: 760px) { .plan-grid { grid-template-columns: 1fr; gap: 26px; } }
+  .plan { width: 100%; max-width: 360px; aspect-ratio: 1; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+  .plan svg { display: block; width: 100%; height: 100%; }
+  .spec-list { display: grid; gap: 18px; }
+  .spec { display: grid; grid-template-columns: 46px 1fr; gap: 12px; align-items: start; }
+  .spec .k { font-family: var(--font-mono); font-size: 10px; color: var(--accent); padding-top: 3px; letter-spacing: 0.06em; }
+  .spec .v { font-size: 0.9rem; color: var(--muted); line-height: 1.62; }
+  .spec .v b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- checklist ---------- */
+  .checks { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 0 34px; margin-top: 8px; }
+  .check { display: grid; grid-template-columns: 20px 1fr; gap: 12px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+  .check .tick { width: 18px; height: 18px; margin-top: 3px; color: var(--accent); }
+  .check h4 { margin: 0 0 3px; font-size: 0.94rem; font-weight: 600; }
+  .check p { margin: 0; font-size: 0.86rem; color: var(--muted); line-height: 1.6; }
+
+  /* ---------- steps ---------- */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-top: 22px; }
+  .step { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; }
+  .step .n { font-family: var(--font-mono); font-size: 11px; color: var(--faint); letter-spacing: 0.08em; }
+  .step h4 { margin: 10px 0 6px; font-size: 0.96rem; font-weight: 600; }
+  .step p { margin: 0; font-size: 0.85rem; color: var(--muted); line-height: 1.62; }
+
+  footer { margin-top: 72px; padding-top: 22px; border-top: 1px solid var(--line); display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 24px; font-size: 11.5px; color: var(--faint); }
+  footer span:last-child { font-family: var(--font-mono); letter-spacing: 0.04em; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .card { transition: transform 180ms ease, border-color 180ms ease; }
+    .card:hover { transform: translateY(-3px); border-color: var(--line-strong); }
+  }
+</style>
+
+<!-- ===== shared artwork ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <clipPath id="sq" clipPathUnits="userSpaceOnUse">
+      <rect width="1024" height="1024" rx="228" />
+    </clipPath>
+
+    <linearGradient id="g-dusk" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#2b2766" />
+      <stop offset="0.55" stop-color="#3730a8" />
+      <stop offset="1" stop-color="#5446f0" />
+    </linearGradient>
+    <linearGradient id="g-dusk-dark" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#0a0918" />
+      <stop offset="1" stop-color="#211b62" />
+    </linearGradient>
+    <linearGradient id="g-tinted" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#ececf0" />
+      <stop offset="1" stop-color="#d7d7de" />
+    </linearGradient>
+    <linearGradient id="g-paper" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="1" stop-color="#eaeaf0" />
+    </linearGradient>
+    <linearGradient id="g-jade" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#0a2c24" />
+      <stop offset="1" stop-color="#0f7a5c" />
+    </linearGradient>
+    <linearGradient id="g-graphite" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#34343b" />
+      <stop offset="1" stop-color="#0e0e11" />
+    </linearGradient>
+    <linearGradient id="g-vermilion" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#d84533" />
+      <stop offset="1" stop-color="#8d1c14" />
+    </linearGradient>
+
+    <!-- 01 · bolt cat -->
+    <symbol id="m-bolt" viewBox="296 320 432 440" overflow="visible">
+      <path fill-rule="evenodd" fill="currentColor" d="M512 758C388 758 298 704 298 610 298 556 304 508 314 468L318 332Q320 316 334 326Q350 370 412 428C444 414 476 408 512 408 548 408 580 414 612 428Q674 370 690 326 704 316 706 332L710 468C720 508 726 556 726 610 726 704 636 758 512 758ZM551 492L455 606 511 606 475 708 579 584 519 584Z"/>
+    </symbol>
+
+    <!-- 02 · line cat -->
+    <symbol id="m-line" viewBox="270 294 484 469" overflow="visible">
+      <path d="M420 735C340 710 298 668 298 610 298 556 304 508 314 468L318 332Q320 316 334 326Q350 370 412 428C444 414 476 408 512 408 548 408 580 414 612 428Q674 370 690 326 704 316 706 332L710 468C720 508 726 556 726 610 726 668 684 710 604 735"
+            fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="444" cy="548" r="21" fill="currentColor"/>
+      <circle cx="580" cy="548" r="21" fill="currentColor"/>
+    </symbol>
+
+    <!-- 03 · portal cat -->
+    <symbol id="m-portal" viewBox="267 258 490 526" overflow="visible">
+      <path d="M460 753A214 214 0 1 1 564 753" fill="none" stroke="currentColor" stroke-width="62" stroke-linecap="round"/>
+      <path d="M311 472L439 344 322 262Z" fill="currentColor"/>
+      <path d="M713 472L585 344 702 262Z" fill="currentColor"/>
+      <circle cx="512" cy="545" r="42" fill="currentColor"/>
+    </symbol>
+
+    <!-- 04 · shield cat -->
+    <symbol id="m-shield" viewBox="296 296 432 488" overflow="visible">
+      <path fill-rule="evenodd" fill="currentColor" d="M512 372C544 372 574 380 600 394Q676 340 702 300 722 312 720 340L722 500C722 612 660 700 512 780 364 700 302 612 302 500L302 340Q300 312 322 300 348 340 424 394C450 380 480 372 512 372ZM548 446L462 568 514 568 484 682 580 568 526 568Z"/>
+    </symbol>
+
+    <!-- 05 · paw -->
+    <symbol id="m-paw" viewBox="292 320 440 408" overflow="visible">
+      <path fill="currentColor" d="M512 544C560 544 606 568 630 608 664 664 628 726 512 726 396 726 360 664 394 608 418 568 464 544 512 544Z"/>
+      <ellipse cx="352" cy="486" rx="58" ry="76" fill="currentColor" transform="rotate(-26 352 486)"/>
+      <ellipse cx="452" cy="402" rx="54" ry="80" fill="currentColor" transform="rotate(-10 452 402)"/>
+      <ellipse cx="572" cy="402" rx="54" ry="80" fill="currentColor" transform="rotate(10 572 402)"/>
+      <ellipse cx="672" cy="486" rx="58" ry="76" fill="currentColor" transform="rotate(26 672 486)"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="page">
+
+  <header class="masthead">
+    <div class="meta-row">
+      <span>LuckyClash · App Icon</span>
+      <span>2026.11 · 5 Directions</span>
+    </div>
+
+    <h1>猫是名字<br>闪电是速度</h1>
+    <p class="lede">为 LuckyClash 画的五组图标方向。所有方案用同一套标准检查：1024 满幅、单一焦点、没有文字，缩到 29pt 还认得出主轮廓。真正的差别不在好看，而在“缩小之后还剩下什么”。</p>
+    <p class="decision"><span class="dot"></span>定稿：02 一笔猫 · 已写入 Assets.xcassets</p>
+
+    <div class="contact-sheet">
+      <div class="contact-item">
+        <div class="icon" style="--sz:60px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+        <span class="cap">01</span>
+      </div>
+      <div class="contact-item">
+        <div class="icon light" style="--sz:60px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div>
+        <span class="cap">02</span>
+      </div>
+      <div class="contact-item">
+        <div class="icon" style="--sz:60px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div>
+        <span class="cap">03</span>
+      </div>
+      <div class="contact-item">
+        <div class="icon" style="--sz:60px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div>
+        <span class="cap">04</span>
+      </div>
+      <div class="contact-item">
+        <div class="icon" style="--sz:60px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div>
+        <span class="cap">05</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ directions ============ -->
+  <section>
+    <div class="sec-head">
+      <div>
+        <div class="sec-label">Directions</div>
+        <h2 class="sec-title">五组方向</h2>
+      </div>
+      <p class="sec-note">每一组都画在同一张 1024 网格上，图形占画布约 60%，四周留白一致。</p>
+    </div>
+
+    <div class="cards">
+      <article class="card">
+        <div class="card-top">
+          <div>
+            <h3>闪电猫</h3>
+            <span class="en">Bolt Cat</span>
+          </div>
+          <span class="num">01</span>
+        </div>
+        <div class="hero-icon">
+          <div class="icon" style="--sz:116px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+        </div>
+        <p>整块猫头剪影，中间镂空一道闪电。放大看是猫，缩小看是一个带弧度的几何块，这也正是图标该有的层次。</p>
+        <div class="tags"><span class="tag hot">推荐</span><span class="tag">小尺寸最稳</span><span class="tag">单色成立</span></div>
+        <div class="size-strip">
+          <div class="item"><div class="icon icon--flat" style="--sz:64px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">64</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:40px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">40</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:24px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">24</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <div>
+            <h3>一笔猫</h3>
+            <span class="en">Line Cat</span>
+          </div>
+          <span class="num">02</span>
+        </div>
+        <div class="hero-icon">
+          <div class="icon light" style="--sz:116px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div>
+        </div>
+        <p>一笔画完的猫，底部留口，像隧道入口。最接近苹果那种“少到只剩轮廓”的做法，纸白底配上几乎不施色的墨线。</p>
+        <div class="tags"><span class="tag hot">已选定</span><span class="tag">轻盈</span><span class="tag">浅色首选</span><span class="tag">依赖留白</span></div>
+        <div class="size-strip">
+          <div class="item"><div class="icon icon--flat light" style="--sz:64px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">64</span></div>
+          <div class="item"><div class="icon icon--flat light" style="--sz:40px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">40</span></div>
+          <div class="item"><div class="icon icon--flat light" style="--sz:24px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">24</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <div>
+            <h3>环猫</h3>
+            <span class="en">Portal Cat</span>
+          </div>
+          <span class="num">03</span>
+        </div>
+        <div class="hero-icon">
+          <div class="icon" style="--sz:116px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div>
+        </div>
+        <p>圆环加两只耳朵，中心一个节点。它同时是猫脸、是隧道口、也是“一个节点连出去”的意思，语义最贴代理这件事。</p>
+        <div class="tags"><span class="tag">抽象</span><span class="tag">网络语义</span><span class="tag">缩小友好</span></div>
+        <div class="size-strip">
+          <div class="item"><div class="icon icon--flat" style="--sz:64px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">64</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:40px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">40</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:24px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">24</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <div>
+            <h3>盾猫</h3>
+            <span class="en">Shield Cat</span>
+          </div>
+          <span class="num">04</span>
+        </div>
+        <div class="hero-icon">
+          <div class="icon" style="--sz:116px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div>
+        </div>
+        <p>盾形罩住猫耳，闪电做负空间。最直白地说清“这是个保护网络的工具”，代价是容易和同类的 VPN 图标撞脸。</p>
+        <div class="tags"><span class="tag">类别明确</span><span class="tag">安全联想</span><span class="tag">辨识度一般</span></div>
+        <div class="size-strip">
+          <div class="item"><div class="icon icon--flat" style="--sz:64px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">64</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:40px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">40</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:24px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">24</span></div>
+        </div>
+      </article>
+
+      <article class="card">
+        <div class="card-top">
+          <div>
+            <h3>爪印</h3>
+            <span class="en">Lucky Paw</span>
+          </div>
+          <span class="num">05</span>
+        </div>
+        <div class="hero-icon">
+          <div class="icon" style="--sz:116px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div>
+        </div>
+        <p>四个脚趾加掌垫，最暖和的一版。幸运的意思到了，但代理的意思要靠名字补足，容易被当成宠物或收纳类应用。</p>
+        <div class="tags"><span class="tag">亲和</span><span class="tag">极简</span><span class="tag">语义偏宠物</span></div>
+        <div class="size-strip">
+          <div class="item"><div class="icon icon--flat" style="--sz:64px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">64</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:40px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">40</span></div>
+          <div class="item"><div class="icon icon--flat" style="--sz:24px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div><span class="px">24</span></div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ size test ============ -->
+  <section>
+    <div class="sec-head">
+      <div>
+        <div class="sec-label">Size Test</div>
+        <h2 class="sec-title">缩小之后还剩下什么</h2>
+      </div>
+      <p class="sec-note">主屏常用 120pt，设置列表与 Spotlight 会到 40pt，29pt 是通知与设置里的下限。</p>
+    </div>
+
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <thead>
+          <tr>
+            <th>方向</th>
+            <th>120</th>
+            <th>80</th>
+            <th>60</th>
+            <th>40</th>
+            <th>29</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="name">闪电猫<span>Bolt Cat</span></td>
+            <td><div class="cell"><div class="icon" style="--sz:120px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:80px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:60px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:40px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:29px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+          </tr>
+          <tr>
+            <td class="name">一笔猫<span>Line Cat</span></td>
+            <td><div class="cell"><div class="icon light" style="--sz:120px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon light" style="--sz:80px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon light" style="--sz:60px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon light" style="--sz:40px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon light" style="--sz:29px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-line" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+          </tr>
+          <tr>
+            <td class="name">环猫<span>Portal Cat</span></td>
+            <td><div class="cell"><div class="icon" style="--sz:120px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:80px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:60px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:40px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:29px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-portal" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+          </tr>
+          <tr>
+            <td class="name">盾猫<span>Shield Cat</span></td>
+            <td><div class="cell"><div class="icon" style="--sz:120px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:80px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:60px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:40px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:29px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-graphite)"/><use href="#m-shield" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+          </tr>
+          <tr>
+            <td class="name">爪印<span>Lucky Paw</span></td>
+            <td><div class="cell"><div class="icon" style="--sz:120px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:80px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:60px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:40px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+            <td><div class="cell"><div class="icon" style="--sz:29px;--mark:#f8e8d2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-vermilion)"/><use href="#m-paw" x="202" y="202" width="620" height="620"/></g></svg></div></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ recommendation ============ -->
+  <section>
+    <div class="sec-head">
+      <div>
+        <div class="sec-label">Recommendation</div>
+        <h2 class="sec-title">推荐：闪电猫</h2>
+      </div>
+      <p class="sec-note">理由只有一条：在 29pt 时，它仍然是一个能被记住的形状。定稿选择了 02 一笔猫。</p>
+    </div>
+
+    <div class="rec-grid">
+      <div class="billboard">
+        <div class="icon" style="--sz:168px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+        <span class="cap">01 · Bolt Cat · 1024</span>
+      </div>
+
+      <div class="rec-copy">
+        <div class="kicker">Why this one</div>
+        <h2>先认形状，再认猫</h2>
+        <p>图标在主屏上停留的时间不到一秒。闪电猫把信息排了序：先是一个稳的剪影，然后才是耳朵，最后才是中间那道闪电。<strong>猫负责记住，闪电负责说明它在做什么。</strong></p>
+        <p>它也不需要装饰：没有描边、没有高光、没有渐变文字。底色承担情绪，白色承担结构，放大缩小都不散。</p>
+      </div>
+    </div>
+
+    <div class="appearance-grid">
+      <div class="panel">
+        <div class="sub-label">三种底色</div>
+        <div class="swatches">
+          <div class="swatch">
+            <div class="icon" style="--sz:76px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">暮蓝</span><span class="hex">#2B2766 → #5446F0</span>
+          </div>
+          <div class="swatch">
+            <div class="icon light" style="--sz:76px;--mark:#14151a"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-paper)"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">纸白</span><span class="hex">#FFFFFF → #EAEAF0</span>
+          </div>
+          <div class="swatch">
+            <div class="icon" style="--sz:76px;--mark:#dbfff2"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-jade)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">玉青</span><span class="hex">#0A2C24 → #0F7A5C</span>
+          </div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="sub-label">三种外观</div>
+        <div class="swatches">
+          <div class="swatch">
+            <div class="icon" style="--sz:68px;--mark:#fff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">浅色</span>
+          </div>
+          <div class="swatch">
+            <div class="icon" style="--sz:68px;--mark:#ece9ff"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-dusk-dark)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">深色</span>
+          </div>
+          <div class="swatch">
+            <div class="icon" style="--sz:68px;--mark:#34343d"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="url(#g-tinted)"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">着色</span>
+          </div>
+          <div class="swatch">
+            <div class="icon icon--flat light" style="--sz:68px;--mark:#15161b;filter:none"><svg viewBox="0 0 1024 1024"><g clip-path="url(#sq)"><rect width="1024" height="1024" fill="#ffffff"/><rect class="edge" x="1.5" y="1.5" width="1021" height="1021" rx="227"/><use href="#m-bolt" x="202" y="202" width="620" height="620"/></g></svg></div>
+            <span class="nm">纯单色</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="plan-grid">
+      <div class="plan">
+        <svg viewBox="0 0 1024 1024" role="img" aria-label="闪电猫的几何构造图">
+          <defs>
+            <pattern id="grid" width="64" height="64" patternUnits="userSpaceOnUse">
+              <path d="M64 0H0V64" fill="none" stroke="var(--grid-line)" stroke-width="1.5"/>
+            </pattern>
+          </defs>
+          <rect width="1024" height="1024" fill="var(--surface)"/>
+          <rect width="1024" height="1024" fill="url(#grid)"/>
+          <rect x="102.4" y="102.4" width="819.2" height="819.2" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="12 12" opacity="0.55"/>
+          <line x1="512" y1="0" x2="512" y2="1024" stroke="var(--accent)" stroke-width="2" stroke-dasharray="6 10" opacity="0.4"/>
+          <use href="#m-bolt" x="202" y="202" width="620" height="620" color="var(--ink)"/>
+          <rect x="1.5" y="1.5" width="1021" height="1021" rx="227" fill="none" stroke="var(--line-strong)" stroke-width="3" stroke-dasharray="8 10"/>
+        </svg>
+      </div>
+      <div class="spec-list">
+        <div class="spec">
+          <span class="k">FULL</span>
+          <span class="v"><b>满幅 1024 × 1024。</b>导出时不做圆角、不留透明通道，圆角由系统自己裁。</span>
+        </div>
+        <div class="spec">
+          <span class="k">SAFE</span>
+          <span class="v"><b>四周留白 20%。</b>图形最大边控制在 620，落在虚线安全区内，任何尺寸下都不会被裁到。</span>
+        </div>
+        <div class="spec">
+          <span class="k">AXIS</span>
+          <span class="v"><b>一条对称轴。</b>耳朵与脸颊对齐 512 中线，闪电沿中线摆放、本身不追求左右对称，否则会显得歪。</span>
+        </div>
+        <div class="spec">
+          <span class="k">RATIO</span>
+          <span class="v"><b>闪电宽高比约 1 : 1.7。</b>太细在 29pt 会糊成裂缝，太粗又会吃掉猫脸的轮廓。</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HIG ============ -->
+  <section>
+    <div class="sec-head">
+      <div>
+        <div class="sec-label">Human Interface Guidelines</div>
+        <h2 class="sec-title">对照检查</h2>
+      </div>
+      <p class="sec-note">按 App Store Connect 与 HIG 对 App 图标的要求逐条过一遍。</p>
+    </div>
+
+    <div class="checks">
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>正方形、不透明、无预烘圆角</h4><p>1024 × 1024 PNG，无 alpha。锁定圆角交给系统，避免在 App Store 与主屏上出现双重圆角。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>单一焦点，没有文字</h4><p>一个剪影、一种背景、一条闪电。缩略图里不靠文字解释，名字由 App 名承担。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>最小尺寸可辨认</h4><p>29pt @3x 即 87px。闪电最窄处仍有约 7px，不依赖 1px 细线或细小文字。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>深色与着色单独绘制</h4><p>三套外观各自定底色与图形色，不做简单的色相反相，避免深色下对比度掉下去。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>不用系统 UI 或苹果硬件</h4><p>造型来自猫与闪电，不借用系统控件、设备外形或原有品牌元素。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>macOS 版本另做留白</h4><p>macOS 图标不是满幅：图形缩进约 10% 并带投影，沿用 iOS 满幅图会显得过大。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>在真实背景下检验</h4><p>深色主屏、浅色主屏、彩色壁纸上分别看过；底色与 Apple 自带图标并排时不会过亮或过灰。</p></div>
+      </div>
+      <div class="check">
+        <svg class="tick" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l4 4 8-9"/></svg>
+        <div><h4>和界面语言一致</h4><p>图标只用两种材料：底色与图形。和 App 里系统组件、SF Symbols、原生列表的克制程度一致。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ next ============ -->
+  <section>
+    <div class="sec-head">
+      <div>
+        <div class="sec-label">Execution</div>
+        <h2 class="sec-title">执行记录</h2>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="n">01</span>
+        <h4>选定方向</h4>
+        <p>02 一笔猫，保留纸白底与墨线，不做混搭。</p>
+      </div>
+      <div class="step">
+        <span class="n">02</span>
+        <h4>比例复核</h4>
+        <p>试过把耳尖收窄，29pt 下反而更糊，最终保留原始比例。</p>
+      </div>
+      <div class="step">
+        <span class="n">03</span>
+        <h4>导出资产</h4>
+        <p>已完成：1024 浅色 / 深色 / 着色，macOS 16–512 各尺寸，已写入 Assets.xcassets。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span>LuckyClash · 图标方案 v1</span>
+    <span>1024 grid · 5 directions</span>
+  </footer>
+</div>
