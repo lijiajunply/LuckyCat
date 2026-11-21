@@ -57,6 +57,27 @@ struct ClashImportTests {
         #expect(output.contains("dns"))
     }
 
+    @Test func capturesURLTestEndpointFromGroup() throws {
+        let yaml = """
+        proxies:
+          - name: One
+            type: ss
+            server: 192.0.2.14
+            port: 8388
+            cipher: aes-256-gcm
+            password: secret
+        proxy-groups:
+          - name: Auto
+            type: url-test
+            url: https://example.com/generate_204
+            proxies: [One]
+        rules:
+          - MATCH,Auto
+        """
+        let document = try ClashImport.parse(Data(yaml.utf8))
+        #expect(document.groups.first?.testURL == "https://example.com/generate_204")
+    }
+
     @Test func convertsBase64ShareLinkSubscription() throws {
         let link = "ss://YWVzLTI1Ni1nY206cGFzc3dvcmQ@192.0.2.13:8388#Node%20A"
         let payload = Data(link.utf8).base64EncodedData()

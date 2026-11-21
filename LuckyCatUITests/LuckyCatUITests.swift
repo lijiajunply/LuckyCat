@@ -57,7 +57,48 @@ final class LuckyCatUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts[name].exists)
         app.buttons["delete-profile-\(name)"].tap()
         app.alerts.buttons["删除"].tap()
-        XCTAssertFalse(app.staticTexts[name].exists)
+        XCTAssertTrue(app.staticTexts[name].waitForNonExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testProfileSwipeActions() {
+        let app = XCUIApplication()
+        let name = "Swipe Fixture " + String(UUID().uuidString.prefix(8))
+        app.launch()
+
+        app.tabBars.buttons["配置"].tap()
+        app.buttons["粘贴配置"].tap()
+        let editor = app.textViews["配置内容"]
+        XCTAssertTrue(editor.waitForExistence(timeout: 5))
+        editor.tap()
+        let privateKey = Data(repeating: 1, count: 32).base64EncodedString()
+        let publicKey = Data(repeating: 2, count: 32).base64EncodedString()
+        editor.typeText("""
+        {"endpointAddress":"192.0.2.40","endpointPort":51820,"clientIPv4":"10.66.0.2","clientIPv6":"fd66::2","dnsServers":["10.66.0.1"],"privateKey":"\(privateKey)","peerPublicKey":"\(publicKey)"}
+        """)
+        app.buttons["预览"].tap()
+        let nameField = app.textFields["配置名称"]
+        XCTAssertTrue(nameField.waitForExistence(timeout: 10))
+        nameField.tap()
+        nameField.typeText(name)
+        app.buttons["保存"].tap()
+
+        app.tabBars.buttons["连接"].tap()
+        let row = app.buttons["profile-\(name)"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        row.swipeRight()
+        XCTAssertTrue(app.buttons["详情"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["删除"].exists)
+
+        app.buttons["详情"].tap()
+        XCTAssertTrue(app.navigationBars["配置详情"].waitForExistence(timeout: 5))
+        app.buttons["完成"].tap()
+
+        row.swipeRight()
+        XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 3))
+        app.buttons["删除"].tap()
+        app.alerts.buttons["删除"].tap()
+        XCTAssertTrue(app.staticTexts[name].waitForNonExistence(timeout: 5))
     }
 
     @MainActor

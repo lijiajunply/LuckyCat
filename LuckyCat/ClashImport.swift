@@ -5,6 +5,10 @@ struct ClashImportGroup: Codable, Equatable {
     let name: String
     let type: String
     let members: [String]
+    /// The `url` / `test-url` used by url-test style groups. Delay tests prefer
+    /// it over the built-in fallback because it is reachable through the
+    /// profile's own network conditions.
+    var testURL: String? = nil
 
     nonisolated var isSelectable: Bool { type.caseInsensitiveCompare("select") == .orderedSame }
 }
@@ -293,7 +297,11 @@ enum ClashImport {
         if members.isEmpty {
             members = raw["use"] as? [String] ?? []
         }
-        return ClashImportGroup(name: name, type: type, members: members)
+        let testURL = ((raw["url"] as? String) ?? (raw["test-url"] as? String))
+            .flatMap { $0.isEmpty ? nil : $0 }
+        return ClashImportGroup(
+            name: name, type: type, members: members, testURL: testURL
+        )
     }
 
     nonisolated private static func encodeYAML(_ document: [String: Any]) throws -> String {

@@ -54,7 +54,7 @@ struct Profile: Codable, Identifiable {
     }
 
     let id: UUID
-    let name: String
+    var name: String
     let nodes: [Node]
     var selectedNodeID: UUID
     var sourceURL: URL? = nil

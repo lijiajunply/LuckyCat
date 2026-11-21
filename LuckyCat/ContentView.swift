@@ -4,7 +4,7 @@ import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    private enum Page: Hashable { case connection, profiles, settings }
+    enum Page: Hashable { case connection, profiles, settings }
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.openURL) private var openURL
@@ -14,17 +14,88 @@ struct ContentView: View {
     @State private var showingImporter = false
     @State private var showingPaste = false
     @State private var showingURLImport = false
+    @State private var showingQRImport = false
+    @State private var pendingQRPayload: String?
     @State private var showingPreview = false
     @State private var showingDisclosure = false
     @State private var pendingDeletion: Profile?
+    @State private var detailProfileID: UUID?
 
     private static let disclosure = "LuckyCat 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。LuckyCat 不上传配置、流量或诊断。"
 
     var body: some View {
         TabView(selection: $page) {
             connection.tabItem { Label("连接", systemImage: "bolt.shield") }.tag(Page.connection)
-            profiles.tabItem { Label("配置", systemImage: "folder") }.tag(Page.profiles)
+            ProfilesView(
+                vpn: vpn,
+                onImportFile: { showingImporter = true },
+                onPaste: { showingPaste = true },
+                onImportURL: {
+                    vpn.discardImport()
+                    showingURLImport = true
+                },
+                onImportQR: { showingQRImport = true },
+                onShowDetail: { detailProfileID = $0 },
+                onDelete: { pendingDeletion = $0 },
+                onShowConnection: { page = .connection }
+            )
+            .tabItem { Label("配置", systemImage: "folder") }
+            .tag(Page.profiles)
             settings.tabItem { Label("设置", systemImage: "gearshape") }.tag(Page.settings)
+        }
+        .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.yaml, .json, .plainText]) { result in
+            switch result {
+            case .success(let url):
+                vpn.importFile(url)
+                showingPreview = vpn.hasStagedImport
+            case .failure(let error):
+                if (error as NSError).code != NSUserCancelledError {
+                    vpn.message = "无法打开配置文件。"
+                }
+            }
+        }
+        .sheet(isPresented: $showingPaste, onDismiss: {
+            showingPreview = vpn.hasStagedImport
+        }) {
+            PasteConfiguration { text in
+                vpn.stage(Data(text.utf8))
+                return vpn.imported.isEmpty ? vpn.importError : nil
+            }
+        }
+        .sheet(isPresented: $showingURLImport, onDismiss: {
+            showingPreview = vpn.hasStagedImport
+        }) {
+            URLImport(vpn: vpn)
+        }
+        .sheet(isPresented: $showingQRImport, onDismiss: importQRCode) {
+            QRCodeImportView { code in
+                pendingQRPayload = code
+                showingQRImport = false
+            }
+        }
+        .sheet(isPresented: $showingPreview, onDismiss: vpn.discardImport) {
+            if let first = vpn.imported.first {
+                ImportPreview(vpn: vpn, selectedNode: first.id)
+            } else {
+                ImportPreview(vpn: vpn, selectedNode: "")
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { detailProfileID != nil },
+            set: { if !$0 { detailProfileID = nil } }
+        )) {
+            if let detailProfileID {
+                ProfileDetailView(vpn: vpn, profileID: detailProfileID)
+            }
+        }
+        .alert("删除配置？", isPresented: Binding(
+            get: { pendingDeletion != nil },
+            set: { if !$0 { pendingDeletion = nil } }
+        ), presenting: pendingDeletion) { profile in
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) { Task { await vpn.remove(profile) } }
+        } message: { profile in
+            Text("将从本机删除「\(profile.name)」及其节点凭据。")
         }
         .task {
             await vpn.refresh()
@@ -62,14 +133,41 @@ struct ContentView: View {
         }
     }
 
+    private func importQRCode() {
+        guard let payload = pendingQRPayload else { return }
+        pendingQRPayload = nil
+        vpn.discardImport()
+        if let url = QRCodePayload.subscriptionURL(from: payload) {
+            Task {
+                if await vpn.importURL(url.absoluteString) {
+                    try? await Task.sleep(for: .milliseconds(250))
+                    showingPreview = true
+                } else {
+                    vpn.message = vpn.importError
+                }
+            }
+        } else {
+            // Share links, a raw Clash YAML, or a base64 subscription bundle.
+            vpn.stage(Data(payload.utf8))
+            if vpn.hasStagedImport {
+                showingPreview = true
+            } else {
+                vpn.message = vpn.importError ?? "二维码内容不是有效的配置链接。"
+            }
+        }
+    }
+
     private var connection: some View {
         NavigationStack {
-            Form {
+            List {
                 Section("VPN") {
                     LabeledContent("状态", value: statusLabel)
                     if let profile = vpn.library.selectedProfile, let node = profile.selectedNode {
                         LabeledContent("配置", value: profile.name)
                         LabeledContent("节点", value: node.name)
+                        if let group = profile.clashGroup, !group.isEmpty {
+                            LabeledContent("策略组", value: group)
+                        }
                         if !node.endpoint.isEmpty {
                             LabeledContent("远端", value: node.endpoint)
                         }
@@ -81,22 +179,38 @@ struct ContentView: View {
                 }
 
                 Section {
-                    if vpn.library.selectedProfile == nil {
-                        Button("导入配置", systemImage: "document.badge.plus") { page = .profiles }
+                    if vpn.library.profiles.isEmpty {
+                        Button("导入配置", systemImage: "document.badge.plus") {
+                            showingImporter = true
+                        }
                     } else {
+                        ForEach(vpn.library.profiles) { profile in
+                            profileRow(profile)
+                        }
+                    }
+                } header: {
+                    Text("配置")
+                } footer: {
+                    if vpn.library.profiles.isEmpty {
+                        Text("从右上角添加配置，或点击上方按钮导入。导入并选择一个配置后才能连接。")
+                    } else {
+                        Text("点击选择配置；右滑或长按可查看详情或删除。")
+                    }
+                }
+
+                if vpn.library.selectedProfile != nil {
+                    Section {
                         Toggle(isOn: connectionBinding) {
                             Label("连接", systemImage: "bolt.shield")
                         }
                         .disabled(connectToggleDisabled)
                         .accessibilityIdentifier("connect-vpn")
-                    }
-                } footer: {
-                    if vpn.library.selectedProfile == nil {
-                        Text("导入配置后才能连接。")
-                    } else if vpn.isActive {
-                        Text("断开后，iOS 可能恢复普通网络访问。")
-                    } else {
-                        Text("首次连接前会说明数据使用方式。")
+                    } footer: {
+                        if vpn.isActive {
+                            Text("断开后，iOS 可能恢复普通网络访问。")
+                        } else {
+                            Text("首次连接前会说明数据使用方式。")
+                        }
                     }
                 }
 
@@ -144,6 +258,11 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("LuckyCat")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    addProfileMenu
+                }
+            }
             .alert("VPN 数据使用", isPresented: $showingDisclosure) {
                 Button("取消", role: .cancel) {}
                 Button("同意并连接") {
@@ -153,6 +272,119 @@ struct ContentView: View {
             } message: {
                 Text(Self.disclosure)
             }
+        }
+    }
+
+    private var addProfileMenu: some View {
+        Menu {
+            Button {
+                showingImporter = true
+            } label: {
+                Label("从文件导入", systemImage: "document.badge.plus")
+            }
+            Button {
+                showingPaste = true
+            } label: {
+                Label("粘贴配置", systemImage: "clipboard")
+            }
+            Button {
+                vpn.discardImport()
+                showingURLImport = true
+            } label: {
+                Label("从 URL 导入", systemImage: "link")
+            }
+            Button {
+                showingQRImport = true
+            } label: {
+                Label("二维码导入", systemImage: "qrcode.viewfinder")
+            }
+        } label: {
+            Image(systemName: "plus.circle")
+                .font(.title3)
+                .accessibilityLabel("添加配置")
+                .accessibilityIdentifier("add-profile")
+        }
+        .disabled(vpn.busy || vpn.isActive)
+    }
+
+    private func profileRow(_ profile: Profile) -> some View {
+        let selected = vpn.library.selectedProfileID == profile.id
+        return Button {
+            guard !vpn.busy, !vpn.isActive else { return }
+            vpn.select(profileID: profile.id)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(profile.name)
+                        .foregroundStyle(.primary)
+                    Text(profileSubtitle(profile))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if let node = profile.selectedNode,
+                   let delay = vpn.latencyValue(for: node.name, profileID: profile.id) {
+                    Text("\(delay) ms")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(delayColor(delay))
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("profile-\(profile.name)")
+        .swipeActions(edge: .leading, allowsFullSwipe: false) {
+            Button {
+                detailProfileID = profile.id
+            } label: {
+                Label("详情", systemImage: "info.circle")
+            }
+            .tint(.blue)
+            Button(role: .destructive) {
+                pendingDeletion = profile
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+            .disabled(vpn.busy || vpn.isActive)
+        }
+        .contextMenu {
+            Button {
+                detailProfileID = profile.id
+            } label: {
+                Label("详情", systemImage: "info.circle")
+            }
+            Button(role: .destructive) {
+                pendingDeletion = profile
+            } label: {
+                Label("删除", systemImage: "trash")
+            }
+            .disabled(vpn.busy || vpn.isActive)
+        }
+    }
+
+    private func profileSubtitle(_ profile: Profile) -> String {
+        var parts: [String] = []
+        if let node = profile.selectedNode {
+            parts.append(node.name)
+        }
+        if let group = profile.clashGroup, !group.isEmpty {
+            parts.append(group)
+        }
+        if let host = profile.sourceURL?.host() {
+            parts.append(host)
+        } else {
+            parts.append("本地配置")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func delayColor(_ delay: Int) -> Color {
+        switch delay {
+        case ..<100: .green
+        case ..<250: .orange
+        default: .red
         }
     }
 
@@ -232,153 +464,6 @@ struct ContentView: View {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .binary)
     }
 
-    private func autoUpdateBinding(_ profile: Profile) -> Binding<Bool> {
-        Binding(
-            get: {
-                vpn.library.profiles.first(where: { $0.id == profile.id })?.autoUpdateEnabled ?? true
-            },
-            set: { vpn.setAutoUpdate($0, for: profile.id) }
-        )
-    }
-
-    private func flow(_ subscription: Profile.Subscription) -> String {
-        ImportSummary.flow(subscription)
-    }
-
-    private func expiry(_ date: Date?) -> String {
-        ImportSummary.expiry(date)
-    }
-
-    private var profiles: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Button("从文件导入", systemImage: "document.badge.plus") { showingImporter = true }
-                    Button("粘贴配置", systemImage: "clipboard") { showingPaste = true }
-                    Button("从 URL 导入", systemImage: "link") {
-                        vpn.discardImport()
-                        showingURLImport = true
-                    }
-                    .accessibilityIdentifier("url-import")
-                    if vpn.library.profiles.contains(where: { $0.sourceURL != nil }) {
-                        Button("全部更新", systemImage: "arrow.triangle.2.circlepath") {
-                            Task { await vpn.updateAll() }
-                        }
-                    }
-                    if let error = vpn.importError { Text(error).foregroundStyle(.orange) }
-                    feedback
-                }
-                .disabled(vpn.busy || vpn.isActive)
-
-                ForEach(vpn.library.profiles) { profile in
-                    Section(profile.name) {
-                        ForEach(profile.nodes) { node in
-                            Button {
-                                vpn.select(profileID: profile.id, nodeID: node.id)
-                            } label: {
-                                LabeledContent {
-                                    if vpn.library.selectedProfileID == profile.id, profile.selectedNodeID == node.id {
-                                        Image(systemName: "checkmark").accessibilityLabel("当前节点")
-                                    }
-                                } label: {
-                                    Text(profile.resolvedEngine == .clash
-                                        ? "\(node.name) · \(node.type ?? "node")"
-                                        : node.name)
-                                    if !node.endpoint.isEmpty { Text(node.endpoint) }
-                                }
-                            }
-                            .disabled(vpn.busy || vpn.isActive)
-                        }
-                        if vpn.library.selectedProfileID != profile.id {
-                            Button("设为当前") { vpn.select(profileID: profile.id) }
-                                .disabled(vpn.busy || vpn.isActive)
-                        }
-                        if let sourceURL = profile.sourceURL {
-                            LabeledContent("来源", value: sourceURL.host() ?? "链接")
-                            if let subscription = profile.subscription {
-                                LabeledContent("流量", value: flow(subscription))
-                                LabeledContent("到期", value: expiry(subscription.expire))
-                                if let updated = subscription.lastUpdated {
-                                    LabeledContent(
-                                        "上次更新",
-                                        value: updated.formatted(date: .abbreviated, time: .shortened)
-                                    )
-                                }
-                            }
-                            Toggle("自动更新", isOn: autoUpdateBinding(profile))
-                                .disabled(vpn.busy || vpn.isActive)
-                            Button {
-                                Task { await vpn.update(profile) }
-                            } label: {
-                                if vpn.updatingProfileID == profile.id {
-                                    HStack {
-                                        ProgressView()
-                                        Text("正在更新…")
-                                    }
-                                } else {
-                                    Label(
-                                        profile.resolvedEngine == .clash ? "更新订阅" : "更新配置",
-                                        systemImage: "arrow.clockwise"
-                                    )
-                                }
-                            }
-                            .accessibilityIdentifier("update-profile-\(profile.name)")
-                            .disabled(vpn.busy || vpn.isActive)
-                        }
-                        NavigationLink("兼容提示") {
-                            ProfileCompatibility(profile: profile)
-                        }
-                        Button("删除配置", role: .destructive) { pendingDeletion = profile }
-                            .accessibilityIdentifier("delete-profile-\(profile.name)")
-                            .disabled(vpn.busy || vpn.isActive)
-                    }
-                }
-                if vpn.isActive {
-                    Text("断开 VPN 后可切换、导入或删除配置。").foregroundStyle(.secondary)
-                }
-            }
-            .navigationTitle("配置")
-            .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.yaml, .json, .plainText]) { result in
-                switch result {
-                case .success(let url):
-                    vpn.importFile(url)
-                    showingPreview = vpn.hasStagedImport
-                case .failure(let error):
-                    if (error as NSError).code != NSUserCancelledError {
-                        vpn.message = "无法打开配置文件。"
-                    }
-                }
-            }
-            .sheet(isPresented: $showingPaste, onDismiss: {
-                showingPreview = vpn.hasStagedImport
-            }) {
-                PasteConfiguration { text in
-                    vpn.stage(Data(text.utf8))
-                    return vpn.imported.isEmpty ? vpn.importError : nil
-                }
-            }
-            .sheet(isPresented: $showingURLImport, onDismiss: {
-                showingPreview = vpn.hasStagedImport
-            }) {
-                URLImport(vpn: vpn)
-            }
-            .sheet(isPresented: $showingPreview, onDismiss: vpn.discardImport) {
-                if let first = vpn.imported.first {
-                    ImportPreview(vpn: vpn, selectedNode: first.id)
-                }
-            }
-            .alert("删除配置？", isPresented: Binding(
-                get: { pendingDeletion != nil },
-                set: { if !$0 { pendingDeletion = nil } }
-            ), presenting: pendingDeletion) { profile in
-                Button("取消", role: .cancel) {}
-                Button("删除", role: .destructive) { Task { await vpn.remove(profile) } }
-            } message: { profile in
-                Text("将从本机删除「\(profile.name)」及其节点凭据。")
-            }
-        }
-    }
-
     private var settings: some View {
         NavigationStack {
             List {
@@ -388,8 +473,9 @@ struct ContentView: View {
                 }
                 NavigationLink("配置兼容性") {
                     List {
-                        Text("支持从文件、粘贴或 HTTPS URL 导入（单次上限 8 MB），可保存来源链接、显示订阅流量与到期时间，并按配置的更新间隔自动更新。URL 可指向 Clash YAML、base64 订阅或分享链接。")
+                        Text("支持从文件、粘贴、HTTPS URL 或二维码导入（单次上限 8 MB），可保存来源链接、显示订阅流量与到期时间，并按配置的更新间隔自动更新。URL 可指向 Clash YAML、base64 订阅或分享链接。")
                         Text("导入的配置由固定版本的 Clash 内核在隧道内执行，支持 ss、ssr、vmess、vless、trojan、hysteria、hysteria2、tuic、wireguard、socks、http 等协议，以及策略组、域名规则、GEOIP、RULE-SET 与 Fake-IP。")
+                        Text("延迟测试会在本机临时启动一个只用于测速的 Clash 内核，移除配置中的监听端口与规则，不会建立 VPN 隧道，也不会上传测试结果。")
                         Text("旧版 WireGuard YAML / JSON 配置仍可导入，会自动转换为 Clash WireGuard 节点；已有旧配置会在下次刷新或连接时迁移。")
                         Text("自动更新仅在你打开 App 或手动触发时运行，不会在后台定时联网。订阅链接与配置内容不会写入诊断。")
                     }
@@ -403,7 +489,7 @@ struct ContentView: View {
 
     @ViewBuilder private var feedback: some View {
         if let message = vpn.message {
-            Label(message, systemImage: "exclamationmark.circle").foregroundStyle(.orange)
+            MessageLabel(text: message)
         }
     }
 
@@ -422,7 +508,7 @@ struct ContentView: View {
     }
 }
 
-private enum ImportSummary {
+enum ImportSummary {
     static func bytes(_ count: UInt64) -> String {
         ByteCountFormatter.string(fromByteCount: Int64(clamping: count), countStyle: .binary)
     }
@@ -442,6 +528,16 @@ private enum ImportSummary {
         return date < Date()
             ? "已到期"
             : date.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
+struct MessageLabel: View {
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: "exclamationmark.circle")
+            .foregroundStyle(.orange)
+            .font(.footnote)
     }
 }
 
@@ -561,6 +657,9 @@ private struct ImportPreview: View {
                     )
                     LabeledContent("到期", value: ImportSummary.expiry(subscription.expire))
                 }
+                if !vpn.stagedGroups.isEmpty {
+                    LabeledContent("策略组", value: "\(vpn.stagedGroups.count) 个")
+                }
                 if !vpn.importedRules.isEmpty {
                     LabeledContent("规则", value: "\(vpn.importedRules.count) 条")
                 }
@@ -667,24 +766,6 @@ private struct DiagnosticsView: View {
         } message: {
             Text("将删除本机保存的全部诊断记录。")
         }
-    }
-}
-
-private struct ProfileCompatibility: View {
-    let profile: Profile
-
-    var body: some View {
-        List {
-            ForEach(profile.nodes) { node in
-                Section(node.name) {
-                    LabeledContent("远端", value: node.endpoint)
-                    ForEach(node.compatibilityNotes, id: \.self) { note in
-                        Text(note)
-                    }
-                }
-            }
-        }
-        .navigationTitle("兼容提示")
     }
 }
 

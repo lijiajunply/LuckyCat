@@ -14,6 +14,8 @@
             </array>
         </dict>
     </array>
+    <key>NSCameraUsageDescription</key>
+    <string>用于扫描配置二维码，快速导入订阅或分享链接。</string>
     <key>PrototypeKeychainGroup</key>
     <string>$(AppIdentifierPrefix)com.luckyfish.LuckyCat.WireGuardPrototype</string>
 </dict>

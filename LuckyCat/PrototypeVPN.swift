@@ -37,8 +37,14 @@ final class PrototypeVPN {
     private(set) var traffic: Traffic?
     private(set) var extensionReady: Bool?
     private(set) var issue: Issue?
+    private(set) var latencyTesting = false
+    private(set) var latencyProfileID: UUID?
+    private(set) var latencyPending: Set<String> = []
+    private(set) var latencyResults: [UUID: [String: Int]] = [:]
+    private(set) var latencyTestedAt: [UUID: Date] = [:]
     var message: String?
 
+    private let latencyTester = ClashLatencyTester.shared
     private var manager: NETunnelProviderManager?
     private var connectionRequest: UUID?
     private var statusChangedAt = UUID()
@@ -426,26 +432,30 @@ final class PrototypeVPN {
         applySelection(index: index, nodeID: nil)
     }
 
-    func select(profileID: UUID, nodeID: UUID) {
+    func select(profileID: UUID, nodeID: UUID, group: String? = nil) {
         guard libraryLoaded, !busy, !isActive,
               let index = library.profiles.firstIndex(where: { $0.id == profileID }),
               library.profiles[index].nodes.contains(where: { $0.id == nodeID }) else { return }
-        applySelection(index: index, nodeID: nodeID)
+        applySelection(index: index, nodeID: nodeID, group: group)
     }
 
-    private func applySelection(index: Int, nodeID: UUID?) {
+    private func applySelection(index: Int, nodeID: UUID?, group: String? = nil) {
         var updated = library
         let alreadySelected = updated.selectedProfileID == updated.profiles[index].id
             && (nodeID == nil || updated.profiles[index].selectedNodeID == nodeID)
+            && (group == nil || updated.profiles[index].clashGroup == group)
         guard !alreadySelected else { return }
         updated.selectedProfileID = updated.profiles[index].id
         if let nodeID {
             updated.profiles[index].selectedNodeID = nodeID
             if updated.profiles[index].resolvedEngine == .clash,
                let node = updated.profiles[index].nodes.first(where: { $0.id == nodeID }) {
-                updated.profiles[index].clashGroup = Self.selectableGroup(
-                    for: node, in: updated.profiles[index].clashGroups ?? []
-                )
+                let groups = updated.profiles[index].clashGroups ?? []
+                if let group, groups.contains(where: { $0.name == group && $0.members.contains(node.name) }) {
+                    updated.profiles[index].clashGroup = group
+                } else {
+                    updated.profiles[index].clashGroup = Self.selectableGroup(for: node, in: groups)
+                }
             }
         }
         do {
@@ -508,6 +518,135 @@ final class PrototypeVPN {
             record("切换自动更新")
         } catch {
             present(error)
+        }
+    }
+
+    func rename(profileID: UUID, to newName: String) {
+        let name = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        guard libraryLoaded, !busy, !isActive, !name.isEmpty,
+              let index = library.profiles.firstIndex(where: { $0.id == profileID }),
+              library.profiles[index].name != name else { return }
+        var updated = library
+        updated.profiles[index].name = name
+        do {
+            try updated.save()
+            library = updated
+            message = nil
+            issue = nil
+            record("配置已重命名")
+        } catch {
+            present(error)
+        }
+    }
+
+    func latencyState(for nodeName: String, profileID: UUID) -> LatencyState {
+        if latencyProfileID == profileID, latencyTesting, latencyPending.contains(nodeName) {
+            return .testing
+        }
+        guard let value = latencyResults[profileID]?[nodeName] else { return .untested }
+        return value >= 0 ? .value(value) : .failed
+    }
+
+    func latencyValue(for nodeName: String, profileID: UUID) -> Int? {
+        guard let value = latencyResults[profileID]?[nodeName], value >= 0 else { return nil }
+        return value
+    }
+
+    func cancelLatencyTest() {
+        guard latencyTesting else { return }
+        latencyTester.cancel()
+        message = "正在停止延迟测试…"
+    }
+
+    /// Runs a URL test for every node in the selected profile through a
+    /// short-lived Clash core owned by this process. The core is configured
+    /// without listeners or rules, so it is only ever used to measure delays.
+    func testLatency() async {
+        guard !busy, !latencyTesting else { return }
+        guard !isActive else {
+            message = "请先断开 VPN，再进行延迟测试。"
+            return
+        }
+        guard libraryLoaded, let profile = library.selectedProfile else {
+            message = "请先在连接页选择一个配置。"
+            return
+        }
+        guard let revision = profile.clashRevision,
+              let yaml = try? ClashTunnelStore.load(profileID: profile.id, revision: revision) else {
+            message = "找不到该配置的本地文件，请更新或重新导入。"
+            issue = .configuration
+            return
+        }
+        let names = Self.uniqueNodeNames(profile)
+        guard !names.isEmpty else {
+            message = "该配置的节点由 proxy-providers 提供，无法直接测试延迟。"
+            return
+        }
+
+        busy = true
+        latencyTesting = true
+        latencyProfileID = profile.id
+        latencyPending = Set(names)
+        latencyResults[profile.id] = [:]
+        latencyTestedAt[profile.id] = nil
+        message = nil
+        issue = nil
+        record("开始延迟测试")
+        defer {
+            busy = false
+            latencyTesting = false
+            latencyProfileID = nil
+            latencyPending = []
+        }
+
+        let testURL = profile.clashGroups?
+            .compactMap(\.testURL)
+            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            ?? ClashLatencyTester.defaultTestURL
+
+        do {
+            let results = try await latencyTester.measure(
+                configuration: yaml, nodes: names, testURL: testURL
+            ) { [weak self] name, delay in
+                Task { @MainActor [weak self] in
+                    self?.applyLatency(name, delay: delay, profileID: profile.id)
+                }
+            }
+            for (name, delay) in results {
+                applyLatency(name, delay: delay, profileID: profile.id)
+            }
+            latencyTestedAt[profile.id] = Date()
+            if let current = library.profiles.first(where: { $0.id == profile.id }),
+               !hasAllLatencyResults(current, profileID: profile.id) {
+                message = "部分节点没有返回延迟。"
+            }
+            record("延迟测试完成")
+        } catch {
+            message = error.localizedDescription
+            issue = Self.issue(for: error)
+            record("延迟测试失败")
+        }
+    }
+
+    private func applyLatency(_ name: String, delay: Int, profileID: UUID) {
+        latencyPending.remove(name)
+        latencyResults[profileID, default: [:]][name] = delay
+    }
+
+    private func hasAllLatencyResults(_ profile: Profile, profileID: UUID) -> Bool {
+        let names = Self.uniqueNodeNames(profile)
+        guard !names.isEmpty, let results = latencyResults[profileID] else { return false }
+        return names.allSatisfy { results[$0] != nil }
+    }
+
+    private static func uniqueNodeNames(_ profile: Profile) -> [String] {
+        let isSynthesized = profile.nodes.count == 1 && profile.nodes[0].type == "auto"
+        guard !isSynthesized else { return [] }
+        var seen = Set<String>()
+        return profile.nodes.compactMap { node in
+            let name = node.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else { return nil }
+            return seen.insert(name).inserted ? name : nil
         }
     }
 
@@ -811,6 +950,7 @@ final class PrototypeVPN {
 
     static func issue(for error: Error) -> Issue? {
         if error is ClashImport.Failure { return .configuration }
+        if error is ClashLatencyFailure { return .remote }
         if error is ClashGeodata.Failure { return .remote }
         let nsError = error as NSError
         if nsError.domain == PrototypeError.errorDomain,
