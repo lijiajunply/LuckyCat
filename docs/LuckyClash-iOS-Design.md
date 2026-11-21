@@ -19,7 +19,7 @@ LuckyClash 是面向自带网络配置的用户的原生 iOS 客户端。目标�
 
 ### 工程起点
 
-现有项目使用 SwiftUI 和 SwiftData 模板。通过 `xcodebuild -list` 确认目前只有 LuckyClash、LuckyClashTests 和 LuckyClashUITests 三个目标。主目标同时声明 iOS、macOS 和 visionOS，iOS 部署目标为 27.2。首轮先确定开发真机可安装的系统版本，正式最低支持版本依据目标用户和依赖兼容性决定。SwiftData 可用于主 App 的配置元数据，现有 `Item` 与列表后续由配置页替换。 [工程定义](../LuckyClash.xcodeproj/project.xcproj) · [App 入口](../LuckyClash/LuckyClashApp.swift)
+现有项目使用 SwiftUI 和 SwiftData 模板。通过 `xcodebuild -list` 确认目前只有 LuckyClash、LuckyClashTests 和 LuckyClashUITests 三个目标。主目标同时声明 iOS、macOS 和 visionOS，iOS 部署目标为 27.2。首轮先确定开发真机可安装的系统版本，正式最低支持版本依据目标用户和依赖兼容性决定。SwiftData 可用于主 App 的配置元数据，现有 `Item` 与列表后续由配置页替换。 [工程定义](../LuckyClash.xcodeproj/project.xcproj) · [App 入口](../LuckyClash/App/LuckyClashApp.swift)
 
 ## 2. 核心选型与发布条件
 

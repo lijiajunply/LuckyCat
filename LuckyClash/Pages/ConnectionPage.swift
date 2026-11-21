@@ -349,8 +349,6 @@ struct ConnectionPage: View {
             .disabled(vpn.latencyTesting || vpn.busy)
         } header: {
             Text("当前节点")
-        } footer: {
-            Text("连接中切换节点会立即应用到新连接，已有连接保持原节点。")
         }
     }
 
@@ -412,8 +410,6 @@ struct ConnectionPage: View {
                 .accessibilityLabel("重新检测出口 IP")
                 .accessibilityIdentifier("refresh-network-detection")
             }
-        } footer: {
-            Text(networkDetectionFooter)
         }
     }
 
