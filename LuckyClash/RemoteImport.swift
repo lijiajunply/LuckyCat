@@ -5,6 +5,12 @@ enum RemoteImport {
     nonisolated static let maximumURLLength = 8192
     nonisolated static let timeout: TimeInterval = 20
 
+    /// Airports hand a decoy "client too old" configuration (fake nodes pointing
+    /// at 127.0.0.1:65535) to user agents they read as the original Clash.
+    /// Claiming a Meta-capable client returns the real node list, which the
+    /// bundled mihomo core can run.
+    nonisolated static let userAgent = "clash-verge/v2.4.2"
+
     struct Response {
         let data: Data
         let finalURL: URL
@@ -55,7 +61,7 @@ enum RemoteImport {
             throw Failure.insecureScheme
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         if let session {
             return try await download(request, with: session)
@@ -70,7 +76,7 @@ enum RemoteImport {
             throw Failure.insecureScheme
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
         return try await download(request, configuration: configuration)
     }
 

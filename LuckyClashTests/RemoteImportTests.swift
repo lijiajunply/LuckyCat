@@ -97,6 +97,28 @@ struct RemoteImportTests {
         #expect(response.header("profile-update-interval") == "6")
     }
 
+    @Test func downloadsAdvertiseMetaCapableUserAgent() async throws {
+        for useSession in [true, false] {
+            var userAgent: String?
+            StubURLProtocol.handler = { request in
+                userAgent = request.value(forHTTPHeaderField: "User-Agent")
+                return (
+                    HTTPURLResponse(
+                        url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+                    )!,
+                    Data("proxies: []".utf8)
+                )
+            }
+            let url = URL(string: "https://example.com/config.yaml")!
+            if useSession {
+                _ = try await RemoteImport.fetch(url, session: session())
+            } else {
+                _ = try await RemoteImport.download(url, configuration: streamingConfiguration())
+            }
+            #expect(userAgent == RemoteImport.userAgent)
+        }
+    }
+
     @Test func fetchRejectsNonHTTPSWithoutARequest() async {
         let url = URL(string: "http://example.com/config.yaml")!
         do {
