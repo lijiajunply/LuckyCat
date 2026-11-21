@@ -1,41 +1,60 @@
 import NetworkExtension
 import SwiftUI
-import UIKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
     enum Page: Hashable { case connection, profiles, settings }
 
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.openURL) private var openURL
-    @AppStorage("tunnelDisclosureVersion") private var disclosureVersion = 0
-    @State private var vpn = PrototypeVPN()
-    @State private var page = Page.connection
+    @State private var vpn: PrototypeVPN
+    @State private var page: Page
     @State private var showingImporter = false
     @State private var showingPaste = false
     @State private var showingURLImport = false
     @State private var showingQRImport = false
     @State private var pendingQRPayload: String?
+    @State private var pendingImportName = ""
     @State private var showingPreview = false
-    @State private var showingDisclosure = false
     @State private var pendingDeletion: Profile?
     @State private var detailProfileID: UUID?
     @State private var showingInfo = false
 
-    private static let disclosure = "LuckyCat 将配置和凭据保存在本机。纳入系统 VPN 路由的 IP 流量和 DNS 请求由你选择的远端转发。远端地址和 iOS 系统例外可走普通网络。断开后，iOS 可能恢复普通网络访问。LuckyCat 不上传配置、流量或诊断。"
+    /// The defaults keep the app entry point unchanged (`ContentView()`); the
+    /// parameters exist so previews can open a specific page with seeded state.
+    init(vpn: PrototypeVPN = PrototypeVPN(), page: Page = .connection) {
+        _vpn = State(initialValue: vpn)
+        _page = State(initialValue: page)
+    }
 
     var body: some View {
         TabView(selection: $page) {
-            connection.tabItem { Label("连接", systemImage: "bolt.shield") }.tag(Page.connection)
-            ProfilesView(
+            ConnectionPage(
                 vpn: vpn,
-                onImportFile: { showingImporter = true },
-                onPaste: { showingPaste = true },
+                onImportFile: {
+                    pendingImportName = ""
+                    showingImporter = true
+                },
+                onPaste: {
+                    pendingImportName = ""
+                    showingPaste = true
+                },
                 onImportURL: {
+                    pendingImportName = ""
                     vpn.discardImport()
                     showingURLImport = true
                 },
-                onImportQR: { showingQRImport = true },
+                onImportQR: {
+                    pendingImportName = ""
+                    showingQRImport = true
+                },
+                onShowDetail: { detailProfileID = $0 },
+                onDelete: { pendingDeletion = $0 },
+                onShowProfiles: { page = .profiles }
+            )
+            .tabItem { Label("连接", systemImage: "bolt.shield") }
+            .tag(Page.connection)
+            ProfilesView(
+                vpn: vpn,
                 onShowDetail: { detailProfileID = $0 },
                 onDelete: { pendingDeletion = $0 },
                 onShowConnection: { page = .connection },
@@ -43,7 +62,9 @@ struct ContentView: View {
             )
             .tabItem { Label("配置", systemImage: "folder") }
             .tag(Page.profiles)
-            settings.tabItem { Label("设置", systemImage: "gearshape") }.tag(Page.settings)
+            SettingsPage(vpn: vpn)
+                .tabItem { Label("设置", systemImage: "gearshape") }
+                .tag(Page.settings)
         }
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.yaml, .json, .plainText]) { result in
             switch result {
@@ -59,7 +80,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingPaste, onDismiss: {
             showingPreview = vpn.hasStagedImport
         }) {
-            PasteConfiguration { text in
+            PasteConfiguration(name: $pendingImportName) { text in
                 vpn.stage(Data(text.utf8))
                 return vpn.imported.isEmpty ? vpn.importError : nil
             }
@@ -67,7 +88,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingURLImport, onDismiss: {
             showingPreview = vpn.hasStagedImport
         }) {
-            URLImport(vpn: vpn)
+            URLImport(vpn: vpn, name: $pendingImportName)
         }
         .sheet(isPresented: $showingQRImport, onDismiss: importQRCode) {
             QRCodeImportView { code in
@@ -77,9 +98,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingPreview, onDismiss: vpn.discardImport) {
             if let first = vpn.imported.first {
-                ImportPreview(vpn: vpn, selectedNode: first.id)
+                ImportPreview(vpn: vpn, selectedNode: first.id, initialName: pendingImportName)
             } else {
-                ImportPreview(vpn: vpn, selectedNode: "")
+                ImportPreview(vpn: vpn, selectedNode: "", initialName: pendingImportName)
             }
         }
         .sheet(isPresented: Binding(
@@ -130,6 +151,7 @@ struct ContentView: View {
             .queryItems?.first(where: { $0.name == "url" })?.value
         guard let target, RemoteImport.url(from: target) != nil else { return }
         page = .profiles
+        pendingImportName = ""
         vpn.discardImport()
         Task {
             if await vpn.importURL(target) {
@@ -141,6 +163,7 @@ struct ContentView: View {
     private func importQRCode() {
         guard let payload = pendingQRPayload else { return }
         pendingQRPayload = nil
+        pendingImportName = ""
         vpn.discardImport()
         if let url = QRCodePayload.subscriptionURL(from: payload) {
             Task {
@@ -162,295 +185,6 @@ struct ContentView: View {
         }
     }
 
-    private var connection: some View {
-        NavigationStack {
-            List {
-                Section("VPN") {
-                    LabeledContent("状态", value: VPNStatusText.status(vpn))
-                    if let profile = vpn.library.selectedProfile, let node = profile.selectedNode {
-                        LabeledContent("配置", value: profile.name)
-                        LabeledContent("节点", value: node.name)
-                    }
-                    feedback
-                }
-
-                Section {
-                    if vpn.library.profiles.isEmpty {
-                        Button("导入配置", systemImage: "document.badge.plus") {
-                            showingImporter = true
-                        }
-                    } else {
-                        ForEach(vpn.library.profiles) { profile in
-                            profileRow(profile)
-                        }
-                    }
-                } header: {
-                    Text("配置")
-                } footer: {
-                    if vpn.library.profiles.isEmpty {
-                        Text("从右上角添加配置，或点击上方按钮导入。导入并选择一个配置后才能连接。")
-                    } else {
-                        Text("点击选择配置；右滑或长按可查看详情或删除。")
-                    }
-                }
-
-                if vpn.library.selectedProfile != nil {
-                    Section {
-                        Toggle(isOn: connectionBinding) {
-                            Label("连接", systemImage: "bolt.shield")
-                        }
-                        .disabled(connectToggleDisabled)
-                        .accessibilityIdentifier("connect-vpn")
-                    } footer: {
-                        if vpn.isActive {
-                            Text("断开后，iOS 可能恢复普通网络访问。")
-                        } else {
-                            Text("首次连接前会说明数据使用方式。")
-                        }
-                    }
-                }
-
-                Section {
-                    Picker("分流模式", selection: modeBinding) {
-                        ForEach(TrafficMode.allCases, id: \.self) { mode in
-                            Text(mode.title).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(vpn.busy || vpn.isActive)
-                    .accessibilityIdentifier("mode-picker")
-                } header: {
-                    Text("分流模式")
-                } footer: {
-                    Text(modeExplanation)
-                }
-
-                if let issue = vpn.issue, issue != .storage {
-                    Section("恢复") {
-                        recovery(issue)
-                    }
-                }
-            }
-            .navigationTitle("LuckyCat")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        showingInfo = true
-                    } label: {
-                        Image(systemName: "info.circle")
-                            .accessibilityLabel("连接信息")
-                            .accessibilityIdentifier("connection-info")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    addProfileMenu
-                }
-            }
-            .alert("VPN 数据使用", isPresented: $showingDisclosure) {
-                Button("取消", role: .cancel) {}
-                Button("同意并连接") {
-                    disclosureVersion = 1
-                    Task { await vpn.connect() }
-                }
-            } message: {
-                Text(Self.disclosure)
-            }
-        }
-    }
-
-    private var addProfileMenu: some View {
-        Menu {
-            Button {
-                showingImporter = true
-            } label: {
-                Label("从文件导入", systemImage: "document.badge.plus")
-            }
-            Button {
-                showingPaste = true
-            } label: {
-                Label("粘贴配置", systemImage: "clipboard")
-            }
-            Button {
-                vpn.discardImport()
-                showingURLImport = true
-            } label: {
-                Label("从 URL 导入", systemImage: "link")
-            }
-            Button {
-                showingQRImport = true
-            } label: {
-                Label("二维码导入", systemImage: "qrcode.viewfinder")
-            }
-        } label: {
-            Image(systemName: "plus.circle")
-                .font(.title3)
-                .accessibilityLabel("添加配置")
-                .accessibilityIdentifier("add-profile")
-        }
-        .disabled(vpn.busy || vpn.isActive)
-    }
-
-    private func profileRow(_ profile: Profile) -> some View {
-        let selected = vpn.library.selectedProfileID == profile.id
-        return Button {
-            guard !vpn.busy, !vpn.isActive else { return }
-            vpn.select(profileID: profile.id)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(profile.name)
-                        .foregroundStyle(.primary)
-                    Text(profileSubtitle(profile))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                if let node = profile.selectedNode,
-                   let delay = vpn.latencyValue(for: node.name, profileID: profile.id) {
-                    Text("\(delay) ms")
-                        .font(.caption.monospacedDigit())
-                        .foregroundStyle(delayColor(delay))
-                }
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("profile-\(profile.name)")
-        .swipeActions(edge: .leading, allowsFullSwipe: false) {
-            Button {
-                detailProfileID = profile.id
-            } label: {
-                Label("详情", systemImage: "info.circle")
-            }
-            .tint(.blue)
-            Button(role: .destructive) {
-                pendingDeletion = profile
-            } label: {
-                Label("删除", systemImage: "trash")
-            }
-            .disabled(vpn.busy || vpn.isActive)
-        }
-        .contextMenu {
-            Button {
-                detailProfileID = profile.id
-            } label: {
-                Label("详情", systemImage: "info.circle")
-            }
-            Button(role: .destructive) {
-                pendingDeletion = profile
-            } label: {
-                Label("删除", systemImage: "trash")
-            }
-            .disabled(vpn.busy || vpn.isActive)
-        }
-    }
-
-    private func profileSubtitle(_ profile: Profile) -> String {
-        var parts: [String] = []
-        if let node = profile.selectedNode {
-            parts.append(node.name)
-        }
-        if let group = profile.clashGroup, !group.isEmpty {
-            parts.append(group)
-        }
-        if let host = profile.sourceURL?.host() {
-            parts.append(host)
-        } else {
-            parts.append("本地配置")
-        }
-        return parts.joined(separator: " · ")
-    }
-
-    private func delayColor(_ delay: Int) -> Color {
-        switch delay {
-        case ..<100: .green
-        case ..<250: .orange
-        default: .red
-        }
-    }
-
-    private var connectionBinding: Binding<Bool> {
-        Binding(
-            get: { vpn.isActive },
-            set: { on in
-                if on {
-                    if disclosureVersion == 1 {
-                        Task { await vpn.connect() }
-                    } else {
-                        showingDisclosure = true
-                    }
-                } else {
-                    vpn.disconnect()
-                }
-            }
-        )
-    }
-
-    private var connectToggleDisabled: Bool {
-        if vpn.library.selectedProfile == nil { return true }
-        return vpn.busy || (vpn.isActive && !vpn.canStop)
-    }
-
-    private var modeBinding: Binding<TrafficMode> {
-        Binding(
-            get: { vpn.library.trafficMode },
-            set: { vpn.setMode($0) }
-        )
-    }
-
-    private var modeExplanation: String {
-        let text = vpn.library.trafficMode.explanation
-        return vpn.isActive ? text + " 断开后可切换模式。" : text
-    }
-
-    @ViewBuilder private func recovery(_ issue: PrototypeVPN.Issue) -> some View {
-        switch issue {
-        case .permission:
-            Button("打开系统设置", systemImage: "gearshape") {
-                if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
-            }
-        case .configuration:
-            Button("前往配置", systemImage: "folder") { page = .profiles }
-        case .remote:
-            Button("重试连接", systemImage: "arrow.clockwise") {
-                Task { await vpn.connect() }
-            }
-            .disabled(vpn.busy || vpn.isActive)
-        case .storage:
-            EmptyView()
-        }
-    }
-
-    private var settings: some View {
-        NavigationStack {
-            List {
-                NavigationLink("隐私与数据使用") {
-                    List { Text(Self.disclosure) }
-                        .navigationTitle("隐私与数据使用")
-                }
-                NavigationLink("配置兼容性") {
-                    List {
-                        Text("支持从文件、粘贴、HTTPS URL 或二维码导入（单次上限 8 MB），可保存来源链接、显示订阅流量与到期时间，并按配置的更新间隔自动更新。URL 可指向 Clash YAML、base64 订阅或分享链接。")
-                        Text("导入的配置由固定版本的 Clash 内核在隧道内执行，支持 ss、ssr、vmess、vless、trojan、hysteria、hysteria2、tuic、wireguard、socks、http 等协议，以及策略组、域名规则、GEOIP、RULE-SET 与 Fake-IP。")
-                        Text("延迟测试会在本机临时启动一个只用于测速的 Clash 内核，移除配置中的监听端口与规则，不会建立 VPN 隧道，也不会上传测试结果。")
-                        Text("旧版 WireGuard YAML / JSON 配置仍可导入，会自动转换为 Clash WireGuard 节点；已有旧配置会在下次刷新或连接时迁移。")
-                        Text("自动更新仅在你打开 App 或手动触发时运行，不会在后台定时联网。订阅链接与配置内容不会写入诊断。")
-                    }
-                    .navigationTitle("配置兼容性")
-                }
-                NavigationLink("本地诊断") { DiagnosticsView(log: vpn.diagnostics) }
-            }
-            .navigationTitle("设置")
-        }
-    }
-
-    @ViewBuilder private var feedback: some View {
-        if let message = vpn.message {
-            MessageLabel(text: message)
-        }
-    }
 }
 
 enum ImportSummary {
@@ -488,6 +222,7 @@ struct MessageLabel: View {
 
 private struct PasteConfiguration: View {
     @Environment(\.dismiss) private var dismiss
+    @Binding var name: String
     @State private var text = ""
     @State private var error: String?
     let parse: (String) -> String?
@@ -495,6 +230,14 @@ private struct PasteConfiguration: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TextField("配置名称（可选）", text: $name)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("paste-name")
+                } footer: {
+                    Text("留空时使用默认名称。")
+                }
                 TextEditor(text: $text)
                     .font(.body.monospaced())
                     .autocorrectionDisabled()
@@ -521,6 +264,7 @@ private struct PasteConfiguration: View {
 private struct URLImport: View {
     @Environment(\.dismiss) private var dismiss
     let vpn: PrototypeVPN
+    @Binding var name: String
     @State private var text = ""
     @State private var loading = false
     @State private var error: String?
@@ -528,6 +272,14 @@ private struct URLImport: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section {
+                    TextField("配置名称（可选）", text: $name)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .accessibilityIdentifier("url-name")
+                } footer: {
+                    Text("留空时使用默认名称。")
+                }
                 Section {
                     TextField("https://example.com/config.yaml", text: $text)
                         .keyboardType(.URL)
@@ -581,16 +333,35 @@ private struct ImportPreview: View {
     @State var selectedNode: String
     @State private var name: String
 
-    init(vpn: PrototypeVPN, selectedNode: String) {
+    init(vpn: PrototypeVPN, selectedNode: String, initialName: String = "") {
         self.vpn = vpn
         _selectedNode = State(initialValue: selectedNode)
-        _name = State(initialValue: vpn.defaultImportName)
+        _name = State(initialValue: initialName)
+    }
+
+    /// The default name used when the name field is left empty.
+    private var resolvedName: String {
+        let typed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard typed.isEmpty else { return String(typed.prefix(80)) }
+        let suggested = vpn.defaultImportName
+        if !suggested.isEmpty { return suggested }
+        return selectedNode.isEmpty
+            ? (vpn.stagedEngine == .clash ? "Clash 配置" : "配置")
+            : selectedNode
+    }
+
+    private var namePlaceholder: String {
+        let suggested = vpn.defaultImportName
+        return suggested.isEmpty
+            ? "配置名称（留空使用默认名称）"
+            : "配置名称（留空使用「\(suggested)」）"
     }
 
     var body: some View {
         NavigationStack {
             Form {
-                TextField("配置名称", text: $name)
+                TextField(namePlaceholder, text: $name)
+                    .accessibilityIdentifier("import-name")
                 if let source = vpn.stagedSourceURL {
                     LabeledContent("来源", value: source.host() ?? "链接")
                 }
@@ -658,11 +429,7 @@ private struct ImportPreview: View {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
-                        let title = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
-                        let fallback = selectedNode.isEmpty
-                            ? (vpn.stagedEngine == .clash ? "Clash 配置" : "配置")
-                            : selectedNode
-                        if vpn.saveImport(named: title.isEmpty ? fallback : title, selectedNode: selectedNode) {
+                        if vpn.saveImport(named: resolvedName, selectedNode: selectedNode) {
                             dismiss()
                         }
                     }
@@ -673,47 +440,69 @@ private struct ImportPreview: View {
     }
 }
 
-private struct DiagnosticsView: View {
-    let log: DiagnosticLog
-    @State private var showingClear = false
+#if DEBUG
+// MARK: - Pages
 
-    var body: some View {
-        List {
-            if log.records.isEmpty {
-                Text("暂无诊断记录。").foregroundStyle(.secondary)
-            } else {
-                Section {
-                    ForEach(log.records.reversed()) { record in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(record.event)
-                            Text(record.timestamp.formatted(date: .abbreviated, time: .standard))
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } header: {
-                    Text("最近 \(log.records.count) 条")
-                }
-                Section {
-                    ShareLink(item: log.exportText) {
-                        Label("导出诊断", systemImage: "square.and.arrow.up")
-                    }
-                    Button("清除记录", role: .destructive) { showingClear = true }
-                } footer: {
-                    Text("记录保留 7 天，最多 200 条。仅含事件、错误码与时间，不含密钥、订阅链接、访问目标或包内容。")
-                }
-            }
-        }
-        .navigationTitle("本地诊断")
-        .alert("清除诊断记录？", isPresented: $showingClear) {
-            Button("取消", role: .cancel) {}
-            Button("清除", role: .destructive) { log.clear() }
-        } message: {
-            Text("将删除本机保存的全部诊断记录。")
-        }
+#Preview("连接 · 已连接") {
+    ContentView(
+        vpn: .preview(
+            status: .connected,
+            traffic: PrototypeVPN.Traffic(
+                received: 8_264_192, sent: 1_284_096, updatedAt: .now
+            ),
+            extensionReady: true,
+            latencyResults: PreviewSamples.latencyResults(forProfile: PreviewSamples.profileID)
+        ),
+        page: .connection
+    )
+}
+
+#Preview("连接 · 已断开") {
+    ContentView(vpn: .preview(), page: .connection)
+}
+
+#Preview("连接 · 连接中") {
+    ContentView(vpn: .preview(status: .connecting), page: .connection)
+}
+
+#Preview("连接 · 未配置") {
+    ContentView(vpn: .preview(library: ProfileLibrary()), page: .connection)
+}
+
+#Preview("配置") {
+    ContentView(
+        vpn: .preview(
+            latencyResults: PreviewSamples.latencyResults(forProfile: PreviewSamples.profileID)
+        ),
+        page: .profiles
+    )
+}
+
+#Preview("设置") {
+    ContentView(vpn: .preview(), page: .settings)
+}
+
+// MARK: - Sheets
+
+#Preview("粘贴配置") {
+    PasteConfiguration(name: .constant("")) { _ in nil }
+}
+
+#Preview("从 URL 导入") {
+    URLImport(vpn: .preview(), name: .constant(""))
+}
+
+#Preview("导入预览") {
+    ImportPreview(
+        vpn: .previewStaged(),
+        selectedNode: PreviewSamples.importedNodes[0].id
+    )
+}
+
+#Preview("提示文字") {
+    List {
+        MessageLabel(text: "iOS 未启动连接，请检查系统 VPN 设置。")
+        MessageLabel(text: "正在准备 GeoIP 数据…")
     }
 }
-
-#Preview {
-    ContentView()
-}
+#endif

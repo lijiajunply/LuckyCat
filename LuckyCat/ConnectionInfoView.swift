@@ -172,3 +172,25 @@ struct ConnectionInfoView: View {
         }
     }
 }
+
+#if DEBUG
+#Preview("连接信息 · 已连接") {
+    ConnectionInfoView(
+        vpn: .preview(
+            status: .connected,
+            traffic: PrototypeVPN.Traffic(
+                received: 86_000_000, sent: 12_000_000, updatedAt: .now
+            ),
+            extensionReady: true
+        )
+    )
+}
+
+#Preview("连接信息 · 已断开") {
+    ConnectionInfoView(vpn: .preview())
+}
+
+#Preview("连接信息 · 未配置") {
+    ConnectionInfoView(vpn: .preview(library: ProfileLibrary()))
+}
+#endif

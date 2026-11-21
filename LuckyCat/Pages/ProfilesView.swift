@@ -2,10 +2,6 @@ import SwiftUI
 
 struct ProfilesView: View {
     let vpn: PrototypeVPN
-    var onImportFile: () -> Void
-    var onPaste: () -> Void
-    var onImportURL: () -> Void
-    var onImportQR: () -> Void
     var onShowDetail: (UUID) -> Void
     var onDelete: (Profile) -> Void
     var onShowConnection: () -> Void
@@ -17,22 +13,19 @@ struct ProfilesView: View {
         NavigationStack {
             List {
                 if let profile {
-                    currentProfileSection(profile)
-                    if profile.sourceURL != nil {
-                        subscriptionSection(profile)
-                    }
                     if let groups = profile.clashGroups, !groups.isEmpty {
                         groupsSection(profile: profile, groups: groups)
                     }
                     nodesSection(profile)
-                    importSection
+                    if profile.sourceURL != nil {
+                        subscriptionSection(profile)
+                    }
                 } else {
-                    importSection
                     Section {
                         ContentUnavailableView(
                             "尚未选择配置",
                             systemImage: "folder.badge.questionmark",
-                            description: Text("在连接页选择一个配置，或直接导入新配置。")
+                            description: Text("在连接页选择一个配置，或从连接页导入新配置。")
                         )
                         Button("前往连接页") { onShowConnection() }
                     }
@@ -85,46 +78,6 @@ struct ProfilesView: View {
             }
             .disabled(vpn.busy || vpn.isActive)
             .accessibilityIdentifier("latency-test-toolbar")
-        }
-    }
-
-    @ViewBuilder private func currentProfileSection(_ profile: Profile) -> some View {
-        Section {
-            if let node = profile.selectedNode {
-                LabeledContent("节点", value: node.name)
-            }
-            if let group = profile.clashGroup, !group.isEmpty {
-                LabeledContent("策略组", value: group)
-            }
-            if vpn.latencyTesting, vpn.latencyProfileID == profile.id {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("正在测试节点延迟…")
-                    Spacer()
-                    Button("取消") { vpn.cancelLatencyTest() }
-                        .buttonStyle(.borderless)
-                }
-            } else {
-                Button {
-                    Task { await vpn.testLatency() }
-                } label: {
-                    Label("延迟测试", systemImage: "speedometer")
-                }
-                .disabled(vpn.busy || vpn.isActive)
-                .accessibilityIdentifier("latency-test")
-            }
-            if let message = vpn.message {
-                MessageLabel(text: message)
-            }
-        } header: {
-            Text(profile.name)
-                .textCase(nil)
-        } footer: {
-            if vpn.isActive {
-                Text("断开 VPN 后可进行延迟测试。")
-            } else {
-                Text("延迟测试会逐个访问配置中的节点并显示连接延迟。")
-            }
         }
     }
 
@@ -198,32 +151,6 @@ struct ProfilesView: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder private var importSection: some View {
-        Section {
-            Button("从文件导入", systemImage: "document.badge.plus") { onImportFile() }
-            Button("粘贴配置", systemImage: "clipboard") { onPaste() }
-            Button("从 URL 导入", systemImage: "link") { onImportURL() }
-                .accessibilityIdentifier("url-import")
-            Button("二维码导入", systemImage: "qrcode.viewfinder") { onImportQR() }
-            if vpn.library.profiles.contains(where: { $0.sourceURL != nil }) {
-                Button("全部更新", systemImage: "arrow.triangle.2.circlepath") {
-                    Task { await vpn.updateAll() }
-                }
-            }
-            if let error = vpn.importError {
-                Text(error).foregroundStyle(.orange)
-            }
-            if vpn.library.selectedProfile == nil, let message = vpn.message {
-                MessageLabel(text: message)
-            }
-        } header: {
-            Text("添加配置")
-        } footer: {
-            Text("支持 Clash YAML、订阅链接、分享链接和二维码。VPN 连接期间不能导入或更新。")
-        }
-        .disabled(vpn.busy || vpn.isActive)
     }
 
     private func autoUpdateBinding(_ id: UUID) -> Binding<Bool> {
@@ -574,3 +501,146 @@ struct ProfileCompatibility: View {
         .navigationTitle("兼容提示")
     }
 }
+
+#if DEBUG
+// MARK: - Pages
+
+#Preview("配置页 · 订阅") {
+    ProfilesView(
+        vpn: .preview(
+            latencyResults: PreviewSamples.latencyResults(forProfile: PreviewSamples.profileID)
+        ),
+        onShowDetail: { _ in },
+        onDelete: { _ in },
+        onShowConnection: {},
+        onShowInfo: {}
+    )
+}
+
+#Preview("配置页 · 订阅即将到期") {
+    ProfilesView(
+        vpn: .preview(
+            library: PreviewSamples.library(profiles: [PreviewSamples.expiringSubscriptionProfile])
+        ),
+        onShowDetail: { _ in },
+        onDelete: { _ in },
+        onShowConnection: {},
+        onShowInfo: {}
+    )
+}
+
+#Preview("配置页 · 本地配置") {
+    ProfilesView(
+        vpn: .preview(
+            library: PreviewSamples.library(
+                profiles: [PreviewSamples.localProfile],
+                selectedProfileID: PreviewSamples.localProfileID
+            )
+        ),
+        onShowDetail: { _ in },
+        onDelete: { _ in },
+        onShowConnection: {},
+        onShowInfo: {}
+    )
+}
+
+#Preview("配置页 · 空") {
+    ProfilesView(
+        vpn: .preview(library: ProfileLibrary()),
+        onShowDetail: { _ in },
+        onDelete: { _ in },
+        onShowConnection: {},
+        onShowInfo: {}
+    )
+}
+
+#Preview("配置页 · 延迟测试中") {
+    ProfilesView(
+        vpn: .preview(
+            latencyTesting: true,
+            latencyProfileID: PreviewSamples.profileID
+        ),
+        onShowDetail: { _ in },
+        onDelete: { _ in },
+        onShowConnection: {},
+        onShowInfo: {}
+    )
+}
+
+// MARK: - Rows
+
+#Preview("节点行") {
+    let vpn = PrototypeVPN.preview(
+        latencyResults: PreviewSamples.latencyResults(forProfile: PreviewSamples.profileID)
+    )
+    return List {
+        ProfileNodeRow(
+            vpn: vpn,
+            profile: PreviewSamples.subscriptionProfile,
+            node: PreviewSamples.hongKong
+        )
+        ProfileNodeRow(
+            vpn: vpn,
+            profile: PreviewSamples.subscriptionProfile,
+            node: PreviewSamples.japan
+        )
+        ProfileNodeRow(
+            vpn: vpn,
+            profile: PreviewSamples.subscriptionProfile,
+            node: PreviewSamples.singapore
+        )
+        ProfileNodeRow(
+            vpn: vpn,
+            profile: PreviewSamples.subscriptionProfile,
+            node: PreviewSamples.losAngeles
+        )
+    }
+}
+
+#Preview("延迟徽章") {
+    List {
+        LabeledContent("未测试") { LatencyBadge(state: .untested) }
+        LabeledContent("测试中") { LatencyBadge(state: .testing) }
+        LabeledContent("良好") { LatencyBadge(state: .value(38)) }
+        LabeledContent("一般") { LatencyBadge(state: .value(180)) }
+        LabeledContent("较差") { LatencyBadge(state: .value(420)) }
+        LabeledContent("超时") { LatencyBadge(state: .failed) }
+    }
+}
+
+// MARK: - Detail
+
+#Preview("策略组详情 · 手动选择") {
+    NavigationStack {
+        ClashGroupDetailView(
+            vpn: .preview(
+                latencyResults: PreviewSamples.latencyResults(forProfile: PreviewSamples.profileID)
+            ),
+            profileID: PreviewSamples.profileID,
+            group: PreviewSamples.groups[0]
+        )
+    }
+}
+
+#Preview("策略组详情 · 自动选择") {
+    NavigationStack {
+        ClashGroupDetailView(
+            vpn: .preview(
+                latencyResults: PreviewSamples.latencyResults(forProfile: PreviewSamples.profileID)
+            ),
+            profileID: PreviewSamples.profileID,
+            group: PreviewSamples.groups[1]
+        )
+    }
+}
+
+#Preview("配置详情") {
+    ProfileDetailView(vpn: .preview(), profileID: PreviewSamples.profileID)
+}
+
+#Preview("兼容提示") {
+    NavigationStack {
+        ProfileCompatibility(profile: PreviewSamples.subscriptionProfile)
+    }
+}
+#endif

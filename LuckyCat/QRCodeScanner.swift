@@ -288,3 +288,11 @@ private final class QRScannerController: UIViewController, AVCaptureMetadataOutp
         }
     }
 }
+
+#if DEBUG
+/// Previews render the permission or no-camera state; the camera itself is not
+/// available in the Xcode canvas.
+#Preview("二维码导入") {
+    QRCodeImportView { _ in }
+}
+#endif

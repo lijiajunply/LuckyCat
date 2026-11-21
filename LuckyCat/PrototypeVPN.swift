@@ -1026,3 +1026,56 @@ final class PrototypeVPN {
         return "VPN 操作失败（\(nsError.domain) \(nsError.code)）。"
     }
 }
+
+#if DEBUG
+extension PrototypeVPN {
+    /// Builds a fully in-memory instance for SwiftUI previews. It never loads
+    /// the on-disk library and never talks to NetworkExtension.
+    static func preview(
+        library: ProfileLibrary = PreviewSamples.library(),
+        status: NEVPNStatus = .disconnected,
+        message: String? = nil,
+        issue: Issue? = nil,
+        traffic: Traffic? = nil,
+        extensionReady: Bool? = nil,
+        latencyResults: [UUID: [String: Int]] = [:],
+        latencyTesting: Bool = false,
+        latencyProfileID: UUID? = nil,
+        busy: Bool = false
+    ) -> PrototypeVPN {
+        let vpn = PrototypeVPN()
+        vpn.library = library
+        vpn.libraryLoaded = true
+        vpn.status = status
+        vpn.message = message
+        vpn.issue = issue
+        vpn.traffic = traffic
+        vpn.extensionReady = extensionReady
+        vpn.latencyResults = latencyResults
+        vpn.latencyTesting = latencyTesting
+        vpn.latencyProfileID = latencyProfileID
+        vpn.busy = busy
+        return vpn
+    }
+
+    /// Seeds a staged import so the import preview sheet can be rendered.
+    static func previewStaged(
+        sourceURL: URL? = PreviewSamples.subscriptionURL,
+        subscription: Profile.Subscription? = PreviewSamples.subscription(),
+        suggestedName: String? = "示例订阅"
+    ) -> PrototypeVPN {
+        let vpn = PrototypeVPN()
+        vpn.libraryLoaded = true
+        vpn.imported = PreviewSamples.importedNodes
+        vpn.importedRules = PreviewSamples.importedRules
+        vpn.importWarnings = PreviewSamples.importWarnings
+        vpn.stagedSourceURL = sourceURL
+        vpn.stagedEngine = .clash
+        vpn.stagedClashYAML = "proxies: []\n"
+        vpn.stagedGroups = PreviewSamples.groups
+        vpn.stagedSubscription = subscription
+        vpn.stagedSuggestedName = suggestedName
+        return vpn
+    }
+}
+#endif
