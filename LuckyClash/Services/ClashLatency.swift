@@ -40,12 +40,9 @@ nonisolated enum ClashLatencyFailure: LocalizedError {
 nonisolated final class ClashLatencyTester: @unchecked Sendable {
     static let shared = ClashLatencyTester()
 
-    /// Used when the profile does not configure a url-test endpoint. Apple's
-    /// captive-portal probe is reachable on most networks, including mainland
-    /// China, where gstatic is commonly blocked.
-    nonisolated static let defaultTestURL = "https://www.apple.com/library/test/success.html"
+    nonisolated static let defaultTestURL = "https://www.gstatic.com/generate_204"
 
-    private static let maximumConcurrentTests = 5
+    private static let maximumConcurrentTests = 32
     private static let socketWaitIterations = 60
     private static let socketPollInterval: TimeInterval = 0.05
 

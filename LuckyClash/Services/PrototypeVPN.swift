@@ -46,6 +46,9 @@ final class PrototypeVPN {
     private(set) var latencyProfileID: UUID?
     private(set) var latencyPending: Set<String> = []
     private(set) var latencyResults: [UUID: [String: Int]] = [:]
+    private var latencyResultsByURL: [UUID: [String: [String: Int]]] = [:]
+    private var latencyPendingURL: String?
+    private(set) var liveGroupMembers: [String: [String]] = [:]
     private(set) var latencyTestedAt: [UUID: Date] = [:]
     var message: String?
 
@@ -534,10 +537,16 @@ final class PrototypeVPN {
             guard let self else { return }
             do {
                 try await self.live.select(group: targetGroup, name: node.name)
+                if UserDefaults.standard.object(forKey: "closeConnectionsOnNodeSwitch") as? Bool ?? true {
+                    do {
+                        try await self.live.closeAllConnections()
+                    } catch {
+                        self.message = "节点已切换，但关闭已有连接失败：\(error.localizedDescription)"
+                    }
+                }
                 guard !self.switchingProfile, self.library.selectedProfileID == profileID else { return }
                 guard let index = self.library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
                 self.applySelection(index: index, nodeID: node.id, group: targetGroup)
-                self.message = nil
                 self.issue = nil
                 self.record("切换节点（连接中）")
             } catch {
@@ -650,16 +659,22 @@ final class PrototypeVPN {
         }
     }
 
-    func latencyState(for nodeName: String, profileID: UUID) -> LatencyState {
-        if latencyProfileID == profileID, latencyTesting, latencyPending.contains(nodeName) {
+    func latencyState(for nodeName: String, profileID: UUID, testURL: String? = nil) -> LatencyState {
+        let url = effectiveTestURL(testURL, profileID: profileID)
+        if latencyProfileID == profileID, latencyTesting, latencyPendingURL == url, latencyPending.contains(nodeName) {
             return .testing
         }
-        guard let value = latencyResults[profileID]?[nodeName] else { return .untested }
+        let value = latencyResultsByURL[profileID]?[url]?[nodeName]
+            ?? (latencyResultsByURL[profileID] == nil ? latencyResults[profileID]?[nodeName] : nil)
+        guard let value else { return .untested }
         return value >= 0 ? .value(value) : .failed
     }
 
     func latencyValue(for nodeName: String, profileID: UUID) -> Int? {
-        guard let value = latencyResults[profileID]?[nodeName], value >= 0 else { return nil }
+        let url = effectiveTestURL(nil, profileID: profileID)
+        let value = latencyResultsByURL[profileID]?[url]?[nodeName]
+            ?? (latencyResultsByURL[profileID] == nil ? latencyResults[profileID]?[nodeName] : nil)
+        guard let value, value >= 0 else { return nil }
         return value
     }
 
@@ -668,6 +683,25 @@ final class PrototypeVPN {
         latencyTester.cancel()
         live.cancelURLTests()
         message = "正在停止延迟测试…"
+    }
+
+    func refreshLiveGroups() async {
+        guard status == .connected, let profile = library.selectedProfile,
+              activeProfileID == profile.id else {
+            liveGroupMembers = [:]
+            return
+        }
+        do {
+            let groups = try await live.groupMembers((profile.clashGroups ?? []).map(\.name))
+            guard status == .connected, library.selectedProfileID == profile.id else { return }
+            liveGroupMembers = groups
+        } catch {
+            liveGroupMembers = [:]
+        }
+    }
+
+    func members(for group: ClashImportGroup) -> [String] {
+        liveGroupMembers[group.name] ?? group.members
     }
 
     /// Runs a URL test for every node in the selected profile. While the
@@ -680,8 +714,14 @@ final class PrototypeVPN {
             message = "请先在连接页选择一个配置。"
             return
         }
-        let availableNames = Self.uniqueNodeNames(profile)
-        let requested = nodeNames.map(Set.init)
+        let groups = (profile.clashGroups ?? []).map { group in
+            ClashImportGroup(name: group.name, type: group.type, members: members(for: group), testURL: group.testURL)
+        }
+        let dynamicNames = isActive ? liveGroupMembers.values.flatMap { $0 } : []
+        let groupNames = Set(groups.map(\.name))
+        let availableNames = Array(NSOrderedSet(array: Self.uniqueNodeNames(profile) + dynamicNames))
+            .compactMap { $0 as? String }.filter { !groupNames.contains($0) && $0 != "DIRECT" && $0 != "REJECT" }
+        let requested = nodeNames.map { Set(Self.expandGroupMembers($0, groups: groups)) }
         let names = availableNames.filter { requested == nil || requested!.contains($0) }
         guard !names.isEmpty else {
             message = "该范围没有可测速的本地节点。"
@@ -701,6 +741,12 @@ final class PrototypeVPN {
         latencyTesting = true
         latencyProfileID = profile.id
         latencyPending = Set(names)
+        let testURL = effectiveTestURL(testURL, profileID: profile.id)
+        latencyPendingURL = testURL
+        if latencyResultsByURL[profile.id]?[testURL] == nil {
+            latencyResultsByURL[profile.id, default: [:]][testURL] = [:]
+        }
+        for name in names { latencyResultsByURL[profile.id]?[testURL]?.removeValue(forKey: name) }
         for name in names { latencyResults[profile.id]?.removeValue(forKey: name) }
         message = nil
         issue = nil
@@ -710,20 +756,19 @@ final class PrototypeVPN {
             latencyTesting = false
             latencyProfileID = nil
             latencyPending = []
+            latencyPendingURL = nil
         }
-
-        let testURL = testURL.flatMap { $0.isEmpty ? nil : $0 } ?? Self.testURL(for: profile)
 
         do {
             let results = try await latencyTester.measure(
                 configuration: yaml, nodes: names, testURL: testURL
             ) { [weak self] name, delay in
                 Task { @MainActor [weak self] in
-                    self?.applyLatency(name, delay: delay, profileID: profile.id)
+                    self?.applyLatency(name, delay: delay, profileID: profile.id, testURL: testURL)
                 }
             }
             for (name, delay) in results {
-                applyLatency(name, delay: delay, profileID: profile.id)
+                applyLatency(name, delay: delay, profileID: profile.id, testURL: testURL)
             }
             latencyTestedAt[profile.id] = Date()
             if !names.allSatisfy({ latencyResults[profile.id]?[$0] != nil }) {
@@ -742,6 +787,12 @@ final class PrototypeVPN {
         latencyTesting = true
         latencyProfileID = profile.id
         latencyPending = Set(names)
+        let testURL = effectiveTestURL(testURL, profileID: profile.id)
+        latencyPendingURL = testURL
+        if latencyResultsByURL[profile.id]?[testURL] == nil {
+            latencyResultsByURL[profile.id, default: [:]][testURL] = [:]
+        }
+        for name in names { latencyResultsByURL[profile.id]?[testURL]?.removeValue(forKey: name) }
         for name in names { latencyResults[profile.id]?.removeValue(forKey: name) }
         message = nil
         issue = nil
@@ -750,18 +801,19 @@ final class PrototypeVPN {
             latencyTesting = false
             latencyProfileID = nil
             latencyPending = []
+            latencyPendingURL = nil
         }
 
         do {
             let results = try await live.urlTest(
-                names: names, testURL: testURL.flatMap { $0.isEmpty ? nil : $0 } ?? Self.testURL(for: profile)
+                names: names, testURL: testURL
             ) { [weak self] name, delay in
                 Task { @MainActor [weak self] in
-                    self?.applyLatency(name, delay: delay, profileID: profile.id)
+                    self?.applyLatency(name, delay: delay, profileID: profile.id, testURL: testURL)
                 }
             }
             for (name, delay) in results {
-                applyLatency(name, delay: delay, profileID: profile.id)
+                applyLatency(name, delay: delay, profileID: profile.id, testURL: testURL)
             }
             latencyTestedAt[profile.id] = Date()
             if !names.allSatisfy({ latencyResults[profile.id]?[$0] != nil }) {
@@ -775,15 +827,46 @@ final class PrototypeVPN {
     }
 
     private static func testURL(for profile: Profile) -> String {
-        profile.clashGroups?
-            .compactMap(\.testURL)
-            .first { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        let groupURL = profile.clashGroups?.first(where: { $0.name == profile.clashGroup })?.testURL
+        return normalizedTestURL(groupURL)
+    }
+
+    static func normalizedTestURL(_ groupURL: String?) -> String {
+        let configured = UserDefaults.standard.string(forKey: "latencyTestURL")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return groupURL.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+            ?? configured.flatMap { $0.isEmpty ? nil : $0 }
             ?? ClashLatencyTester.defaultTestURL
     }
 
-    private func applyLatency(_ name: String, delay: Int, profileID: UUID) {
+    private func effectiveTestURL(_ url: String?, profileID: UUID) -> String {
+        if let url = url?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty { return url }
+        guard let profile = library.profiles.first(where: { $0.id == profileID }) else {
+            return ClashLatencyTester.defaultTestURL
+        }
+        return Self.testURL(for: profile)
+    }
+
+    static func expandGroupMembers(_ names: [String], groups: [ClashImportGroup]) -> [String] {
+        let groupsByName = Dictionary(groups.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
+        var visited = Set<String>()
+        var result: [String] = []
+        func visit(_ name: String) {
+            guard visited.insert(name).inserted else { return }
+            if let group = groupsByName[name] {
+                group.members.forEach(visit)
+            } else {
+                result.append(name)
+            }
+        }
+        names.forEach(visit)
+        return result
+    }
+
+    private func applyLatency(_ name: String, delay: Int, profileID: UUID, testURL: String) {
         latencyPending.remove(name)
         latencyResults[profileID, default: [:]][name] = delay
+        latencyResultsByURL[profileID, default: [:]][testURL, default: [:]][name] = delay
     }
 
     private func hasAllLatencyResults(_ profile: Profile, profileID: UUID) -> Bool {

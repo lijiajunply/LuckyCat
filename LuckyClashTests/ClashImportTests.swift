@@ -4,6 +4,14 @@ import Testing
 
 @MainActor
 struct ClashImportTests {
+    @Test func expandsNestedGroupsWithoutLoopsOrDuplicates() {
+        let groups = [
+            ClashImportGroup(name: "outer", type: "select", members: ["inner", "A"]),
+            ClashImportGroup(name: "inner", type: "select", members: ["A", "B", "outer"])
+        ]
+        #expect(PrototypeVPN.expandGroupMembers(["outer", "B"], groups: groups) == ["A", "B"])
+    }
+
     @Test func keepsFullClashConfiguration() throws {
         let yaml = """
         mode: rule

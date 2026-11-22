@@ -50,7 +50,7 @@ nonisolated final class ClashLiveClient: @unchecked Sendable {
     nonisolated(unsafe) private var onTraffic: (@Sendable (ClashTrafficRates) -> Void)?
     nonisolated(unsafe) private var onDisconnect: (@Sendable (String?) -> Void)?
 
-    private static let maximumConcurrentTests = 5
+    private static let maximumConcurrentTests = 32
     private static let logLevel = "info"
     private static let statusInterval: Int64 = 1000
 
@@ -146,6 +146,22 @@ nonisolated final class ClashLiveClient: @unchecked Sendable {
     func closeAllConnections() async throws {
         try await using { client in
             _ = try client.closeConnections()
+        }
+    }
+
+    func groupMembers(_ names: [String]) async throws -> [String: [String]] {
+        try await using { client in
+            var groups: [String: [String]] = [:]
+            for name in names {
+                var error: NSError?
+                let response = client.lookupProxy(name, error: &error)
+                if let error { throw error }
+                guard let data = response.data(using: .utf8),
+                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
+                let proxy = (object["proxy"] as? [String: Any]) ?? object
+                if let members = proxy["all"] as? [String] { groups[name] = members }
+            }
+            return groups
         }
     }
 

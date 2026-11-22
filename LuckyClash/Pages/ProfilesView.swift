@@ -1,4 +1,5 @@
 import SwiftUI
+import NetworkExtension
 
 struct ProfilesView: View {
     let vpn: PrototypeVPN
@@ -38,6 +39,7 @@ struct ProfilesView: View {
                 }
             }
             .navigationTitle("配置")
+            .task(id: "\(vpn.status.rawValue)-\(profile?.id.uuidString ?? "")") { await vpn.refreshLiveGroups() }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
@@ -133,7 +135,7 @@ struct ProfilesView: View {
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(group.name).foregroundStyle(.primary)
-                            Text("\(group.type) · \(group.members.count) 个成员")
+                            Text("\(group.type) · \(vpn.members(for: group).count) 个成员")
                                 .font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 8)
@@ -149,10 +151,10 @@ struct ProfilesView: View {
                 .swipeActions(edge: .trailing) { groupLatencyAction(group) }
 
                 if expandedGroups.contains(group.name) {
-                    if group.members.isEmpty {
+                    if vpn.members(for: group).isEmpty {
                         Text("该策略组暂无成员。").foregroundStyle(.secondary)
                     }
-                    ForEach(group.members, id: \.self) { member in
+                    ForEach(vpn.members(for: group), id: \.self) { member in
                         if let node = profile.nodes.first(where: { $0.name == member }) {
                             ProfileNodeRow(vpn: vpn, profile: profile, node: node, group: group)
                                 .padding(.leading, 20)
@@ -160,7 +162,7 @@ struct ProfilesView: View {
                             HStack {
                                 Text(member)
                                 Spacer()
-                                Text("配置内引用").font(.caption).foregroundStyle(.secondary)
+                                LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id, testURL: PrototypeVPN.normalizedTestURL(group.testURL)))
                             }
                             .padding(.leading, 20)
                         }
@@ -178,7 +180,7 @@ struct ProfilesView: View {
 
     private func groupLatencyAction(_ group: ClashImportGroup) -> some View {
         Button {
-            Task { await vpn.testLatency(nodeNames: group.members, testURL: group.testURL) }
+            Task { await vpn.testLatency(nodeNames: vpn.members(for: group), testURL: PrototypeVPN.normalizedTestURL(group.testURL)) }
         } label: {
             Label("测试组内延迟", systemImage: "speedometer")
         }
@@ -199,7 +201,7 @@ struct ProfilesView: View {
             Text("节点")
         } footer: {
             if vpn.isActive && vpn.canSwitchNodes(for: profile.id) {
-                Text("连接中切换会立即应用到新连接，已有连接保持原节点。")
+                Text("切换后是否关闭已有连接可在设置中调整。")
             } else if vpn.isActive {
                 Text("断开 VPN 后才能切换其他配置的节点。")
             }

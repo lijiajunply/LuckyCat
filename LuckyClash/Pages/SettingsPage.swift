@@ -2,10 +2,21 @@ import SwiftUI
 
 struct SettingsPage: View {
     let vpn: PrototypeVPN
+    @AppStorage("closeConnectionsOnNodeSwitch") private var closeConnectionsOnNodeSwitch = true
+    @AppStorage("latencyTestURL") private var latencyTestURL = ClashLatencyTester.defaultTestURL
 
     var body: some View {
         NavigationStack {
             List {
+                Toggle("切换节点时关闭已有连接", isOn: $closeConnectionsOnNodeSwitch)
+                Section("延迟测试") {
+                    TextField("默认测试链接", text: $latencyTestURL)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    Text("策略组配置了测试链接时优先使用策略组的链接。")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 NavigationLink("隐私与数据使用") {
                     List { Text(AppDisclosure.text) }
                         .navigationTitle("隐私与数据使用")

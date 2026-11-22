@@ -32,7 +32,7 @@ struct ClashGroupDetailView: View {
                 if !group.isSelectable {
                     Text("该策略组由内核按延迟自动选择节点，不能手动切换。")
                 } else if vpn.isActive && vpn.canSwitchNodes(for: profileID) {
-                    Text("连接中切换会立即应用到新连接，已有连接保持原节点。")
+                    Text("切换后是否关闭已有连接可在设置中调整。")
                 }
             }
         }
@@ -75,7 +75,7 @@ struct ClashGroupDetailView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id))
+            LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id, testURL: PrototypeVPN.normalizedTestURL(group.testURL)))
             if profile.selectedNodeID == node.id, profile.clashGroup == group.name {
                 Image(systemName: "checkmark")
                     .foregroundStyle(.tint)

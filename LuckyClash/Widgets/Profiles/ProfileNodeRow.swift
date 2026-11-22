@@ -20,7 +20,7 @@ struct ProfileNodeRow: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                LatencyBadge(state: vpn.latencyState(for: node.name, profileID: profile.id))
+                LatencyBadge(state: vpn.latencyState(for: node.name, profileID: profile.id, testURL: group.map { PrototypeVPN.normalizedTestURL($0.testURL) }))
                 if profile.selectedNodeID == node.id && (group == nil || profile.clashGroup == group?.name) {
                     Image(systemName: "checkmark")
                         .foregroundStyle(.tint)
@@ -37,7 +37,7 @@ struct ProfileNodeRow: View {
     }
     private var latencyAction: some View {
         Button {
-            Task { await vpn.testLatency(nodeNames: [node.name]) }
+            Task { await vpn.testLatency(nodeNames: [node.name], testURL: group.map { PrototypeVPN.normalizedTestURL($0.testURL) }) }
         } label: {
             Label("测试延迟", systemImage: "speedometer")
         }

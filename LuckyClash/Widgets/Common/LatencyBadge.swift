@@ -17,10 +17,10 @@ struct LatencyBadge: View {
                 .foregroundStyle(color(for: delay))
                 .accessibilityLabel("延迟 \(delay) 毫秒")
         case .failed:
-            Text("超时")
+            Text("失败")
                 .font(.caption)
                 .foregroundStyle(.red)
-                .accessibilityLabel("延迟测试超时")
+                .accessibilityLabel("延迟测试失败")
         }
     }
 
