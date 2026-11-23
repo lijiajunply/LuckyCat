@@ -34,7 +34,7 @@ struct ProfileDetailView: View {
                     }
 
                     Section("当前配置") {
-                        LabeledContent("节点", value: profile.selectedNode?.name ?? "未选择")
+                        LabeledContent("节点", value: profile.selectedOutboundName ?? "未选择")
                         LabeledContent(
                             "策略组",
                             value: profile.clashGroup.flatMap { $0.isEmpty ? nil : $0 } ?? "未指定"

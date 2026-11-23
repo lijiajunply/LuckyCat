@@ -240,8 +240,8 @@ struct ConnectionPage: View {
 
     private func profileSubtitle(_ profile: Profile) -> String {
         var parts: [String] = []
-        if let node = profile.selectedNode {
-            parts.append(node.name)
+        if let name = profile.selectedOutboundName {
+            parts.append(name)
         }
         if let group = profile.clashGroup, !group.isEmpty {
             parts.append(group)
@@ -312,7 +312,7 @@ struct ConnectionPage: View {
             } label: {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(profile.selectedNode?.name ?? "未选择节点")
+                        Text(profile.selectedOutboundName ?? "未选择节点")
                             .foregroundStyle(.primary)
                         Text(nodeSubtitle(profile))
                             .font(.caption)
@@ -501,7 +501,7 @@ struct ConnectionPage: View {
 
     private func nodeSubtitle(_ profile: Profile) -> String {
         var parts: [String] = []
-        if let type = profile.selectedNode?.type, !type.isEmpty {
+        if profile.clashSelectedMember == nil, let type = profile.selectedNode?.type, !type.isEmpty {
             parts.append(type)
         }
         if let group = profile.clashGroup, !group.isEmpty {

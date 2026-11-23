@@ -159,11 +159,20 @@ struct ProfilesView: View {
                             ProfileNodeRow(vpn: vpn, profile: profile, node: node, group: group)
                                 .padding(.leading, 20)
                         } else {
-                            HStack {
-                                Text(member)
-                                Spacer()
-                                LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id, testURL: PrototypeVPN.normalizedTestURL(group.testURL)))
+                            Button {
+                                vpn.selectMember(profileID: profile.id, group: group, member: member)
+                            } label: {
+                                HStack {
+                                    Text(member).foregroundStyle(.primary)
+                                    Spacer()
+                                    LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id, testURL: PrototypeVPN.normalizedTestURL(group.testURL)))
+                                    if profile.clashGroup == group.name && profile.clashSelectedMember == member {
+                                        Image(systemName: "checkmark").foregroundStyle(.tint)
+                                    }
+                                }.contentShape(Rectangle())
                             }
+                            .buttonStyle(.plain)
+                            .disabled(!group.isSelectable || !vpn.canSwitchNodes(for: profile.id))
                             .padding(.leading, 20)
                         }
                     }

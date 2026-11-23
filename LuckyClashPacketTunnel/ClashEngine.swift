@@ -61,6 +61,7 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         configurationText: String,
         selectedGroup: String?,
         selectedNode: String?,
+        mode: TrafficMode?,
         completion: @escaping (Error?) -> Void
     ) {
         lifecycle.async { [self] in
@@ -80,6 +81,15 @@ final class ClashEngine: NSObject, @unchecked Sendable {
                     var selectError: NSError?
                     if !ClashSelectProxy(selectedGroup, selectedNode, &selectError) {
                         Self.log.notice("proxy selection was not applied: \(selectError?.localizedDescription ?? "unknown", privacy: .public)")
+                    }
+                }
+                if mode == .global {
+                    guard let selectedNode, !selectedNode.isEmpty else {
+                        throw Failure.core("全局模式需要选择一个代理节点。")
+                    }
+                    var selectError: NSError?
+                    if !ClashSelectProxy("GLOBAL", selectedNode, &selectError) {
+                        throw Failure.core("无法设置全局代理节点：\(selectError?.localizedDescription ?? "unknown")")
                     }
                 }
                 Self.log.notice("clash core started: \(ClashVersion(), privacy: .public)")

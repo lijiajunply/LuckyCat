@@ -97,6 +97,20 @@ enum ClashImport {
         guard !proxies.isEmpty else { throw Failure.noProxies("") }
 
         let names = proxies.compactMap { $0["name"] as? String }
+        var rules = configuration.rules.compactMap { rule -> String? in
+            let policy = rule.policy == .direct ? "DIRECT" : generatedGroupName
+            switch rule.kind {
+            case .ipv4:
+                return rule.value.map { "IP-CIDR,\($0),\(policy)" }
+            case .ipv6:
+                return rule.value.map { "IP-CIDR6,\($0),\(policy)" }
+            case .match:
+                return "MATCH,\(policy)"
+            }
+        }
+        if !configuration.rules.contains(where: { $0.kind == .match }) {
+            rules.append("MATCH,\(generatedGroupName)")
+        }
         let document: [String: Any] = [
             "mode": "rule",
             "geodata-mode": true,
@@ -111,14 +125,15 @@ enum ClashImport {
             "proxy-groups": [[
                 "name": generatedGroupName, "type": "select", "proxies": names
             ]],
-            "rules": ["MATCH,\(generatedGroupName)"]
+            "rules": rules
         ]
         let yaml = try encodeYAML(document)
         return ImportedConfiguration(
             engine: .clash,
             nodes: nodes,
             rules: [],
-            warnings: configuration.warnings,
+            warnings: configuration.warnings + (configuration.rules.isEmpty
+                ? ["配置没有分流规则，规则模式下所有流量将使用代理。"] : []),
             clashYAML: yaml,
             groups: [ClashImportGroup(
                 name: generatedGroupName, type: "select", members: names
@@ -196,6 +211,9 @@ enum ClashImport {
         let hasGroups = !groups.isEmpty
         let hasRules = !rules.isEmpty
         let needsWrapper = !hasRules && !hasGroups
+        if !hasRules {
+            warnings.append("配置没有分流规则，规则模式下所有流量将使用默认策略组，可能与全局模式相同。")
+        }
         if needsWrapper {
             let group: [String: Any]
             if proxies.isEmpty {

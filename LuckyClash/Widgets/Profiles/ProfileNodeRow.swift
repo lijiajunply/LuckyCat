@@ -21,7 +21,7 @@ struct ProfileNodeRow: View {
                 }
                 Spacer(minLength: 8)
                 LatencyBadge(state: vpn.latencyState(for: node.name, profileID: profile.id, testURL: group.map { PrototypeVPN.normalizedTestURL($0.testURL) }))
-                if profile.selectedNodeID == node.id && (group == nil || profile.clashGroup == group?.name) {
+                if profile.clashSelectedMember == nil && profile.selectedNodeID == node.id && (group == nil || profile.clashGroup == group?.name) {
                     Image(systemName: "checkmark")
                         .foregroundStyle(.tint)
                         .accessibilityLabel("当前节点")

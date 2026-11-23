@@ -32,6 +32,16 @@ struct ProfileMetadataTests {
         #expect(library.trafficMode == .rule)
         #expect(library.selectedProfile?.sourceURL == nil)
         #expect(library.selectedProfile?.rules == nil)
+        #expect(library.selectedProfile?.selectedOutboundName == "Peer")
+    }
+
+    @Test func preservesSelectedNestedGroup() throws {
+        let node = Profile.Node(id: UUID(), name: "Peer", endpoint: "example.com")
+        let profile = Profile(id: UUID(), name: "Test", nodes: [node], selectedNodeID: node.id,
+                              clashGroup: "选择", clashSelectedMember: "自动选择")
+        let decoded = try JSONDecoder().decode(Profile.self, from: JSONEncoder().encode(profile))
+        #expect(decoded.clashGroup == "选择")
+        #expect(decoded.selectedOutboundName == "自动选择")
     }
 
     @Test func roundTripsSourceURLRulesAndMode() throws {

@@ -13,16 +13,16 @@ struct ClashGroupDetailView: View {
         List {
             Section {
                 LabeledContent("类型", value: group.type)
-                LabeledContent("成员", value: "\(group.members.count)")
+                LabeledContent("成员", value: "\(vpn.members(for: group).count)")
                 if profile?.clashGroup == group.name {
                     LabeledContent("状态", value: "当前使用")
                 }
             }
             Section {
-                if group.members.isEmpty {
+                if vpn.members(for: group).isEmpty {
                     Text("该策略组暂无成员。").foregroundStyle(.secondary)
                 } else {
-                    ForEach(group.members, id: \.self) { member in
+                    ForEach(vpn.members(for: group), id: \.self) { member in
                         memberRow(member)
                     }
                 }
@@ -53,13 +53,19 @@ struct ClashGroupDetailView: View {
                 memberLabel(member, node: node, profile: profile)
             }
         } else {
-            HStack {
-                Text(member)
-                Spacer()
-                Text("配置内引用")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+            Button {
+                vpn.selectMember(profileID: profileID, group: group, member: member)
+            } label: {
+                HStack {
+                    Text(member).foregroundStyle(.primary)
+                    Spacer()
+                    if profile?.clashGroup == group.name && profile?.clashSelectedMember == member {
+                        Image(systemName: "checkmark").foregroundStyle(.tint)
+                    }
+                }.contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .disabled(!group.isSelectable || !vpn.canSwitchNodes(for: profileID))
         }
     }
 
@@ -76,7 +82,7 @@ struct ClashGroupDetailView: View {
             }
             Spacer(minLength: 8)
             LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id, testURL: PrototypeVPN.normalizedTestURL(group.testURL)))
-            if profile.selectedNodeID == node.id, profile.clashGroup == group.name {
+            if profile.clashSelectedMember == nil, profile.selectedNodeID == node.id, profile.clashGroup == group.name {
                 Image(systemName: "checkmark")
                     .foregroundStyle(.tint)
                     .accessibilityLabel("当前选择")

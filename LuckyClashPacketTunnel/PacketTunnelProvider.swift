@@ -22,7 +22,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
             engine.start(
                 configurationText: selection.configuration,
                 selectedGroup: selection.group,
-                selectedNode: selection.node
+                selectedNode: selection.node,
+                mode: selection.mode
             ) { error in
                 self.lifecycle.async {
                     if error != nil {
@@ -77,6 +78,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
         let configuration: String
         let group: String?
         let node: String?
+        let mode: TrafficMode?
     }
 
     private func clashSelection() -> ClashSelection? {
@@ -93,7 +95,8 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
         return ClashSelection(
             configuration: mode.map { ClashModeOverride.apply($0, to: stored) } ?? stored,
             group: values[ClashTunnelStore.selectedGroupKey] as? String,
-            node: values[ClashTunnelStore.selectedNodeKey] as? String
+            node: values[ClashTunnelStore.selectedNodeKey] as? String,
+            mode: mode
         )
     }
 

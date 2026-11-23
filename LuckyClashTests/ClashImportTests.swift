@@ -63,6 +63,7 @@ struct ClashImportTests {
         #expect(output.contains("proxy-groups"))
         #expect(output.contains("MATCH,LuckyClash"))
         #expect(output.contains("dns"))
+        #expect(document.warnings.contains { $0.contains("没有分流规则") })
     }
 
     @Test func capturesURLTestEndpointFromGroup() throws {
@@ -160,7 +161,11 @@ struct ClashImportTests {
                 name: "Peer", endpoint: configuration.endpoint,
                 configuration: configuration
             )],
-            rules: [],
+            rules: [
+                RoutingRule(kind: .ipv4, value: "10.0.0.0/8", policy: .direct),
+                RoutingRule(kind: .ipv6, value: "2001:db8::/32", policy: .proxy),
+                RoutingRule(kind: .match, value: nil, policy: .direct)
+            ],
             warnings: []
         )
         let converted = try ClashImport.fromLegacy(legacy)
@@ -170,7 +175,10 @@ struct ClashImportTests {
         let yaml = try #require(converted.clashYAML)
         #expect(yaml.contains("type: wireguard"))
         #expect(yaml.contains("private-key"))
-        #expect(yaml.contains("MATCH,LuckyClash"))
+        #expect(yaml.contains("IP-CIDR,10.0.0.0/8,DIRECT"))
+        #expect(yaml.contains("IP-CIDR6,2001:db8::/32,LuckyClash"))
+        #expect(yaml.contains("MATCH,DIRECT"))
+        #expect(!yaml.contains("MATCH,LuckyClash"))
         #expect(!ClashGeodata.isRequired(yaml))
     }
 

@@ -274,8 +274,20 @@ final class PrototypeVPN {
         Task { [weak self] in
             guard let self else { return }
             do {
+                if mode == .global {
+                    guard let profile = self.library.selectedProfile,
+                          let name = profile.clashSelectedMember ?? (profile.selectedNode?.type == "auto" ? nil : profile.selectedNode?.name) else {
+                        throw ClashLiveFailure.rejected("全局模式需要选择一个代理节点。")
+                    }
+                    try await self.live.select(group: "GLOBAL", name: name)
+                }
                 try await self.live.setMode(mode)
                 self.record("分流模式已应用到当前连接")
+                do {
+                    try await self.live.closeAllConnections()
+                } catch {
+                    self.message = "分流模式已切换，但关闭已有连接失败：\(error.localizedDescription)"
+                }
             } catch {
                 self.message = "分流模式已保存，但未能应用到当前连接：\(error.localizedDescription)"
             }
@@ -353,8 +365,15 @@ final class PrototypeVPN {
                     ? nil
                     : Self.selectableGroup(for: selected, in: document.groups),
                 clashGroups: document.groups,
-                subscription: subscription, autoUpdate: profile.autoUpdate
+                subscription: subscription, autoUpdate: profile.autoUpdate,
+                clashSelectedMember: profile.clashGroup.flatMap { group in
+                    document.groups.first(where: { $0.name == group && $0.isSelectable })
+                        .flatMap { $0.members.contains(profile.clashSelectedMember ?? "") ? profile.clashSelectedMember : nil }
+                }
             )
+            if updated.profiles[index].clashSelectedMember != nil {
+                updated.profiles[index].clashGroup = profile.clashGroup
+            }
             try updated.save()
             library = updated
 
@@ -505,6 +524,52 @@ final class PrototypeVPN {
         switchNodeOnLiveCore(profileID: profileID, node: node, group: group)
     }
 
+    func selectMember(profileID: UUID, group: ClashImportGroup, member: String) {
+        guard libraryLoaded, canSwitchNodes(for: profileID), group.isSelectable,
+              members(for: group).contains(member),
+              let index = library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        if let node = library.profiles[index].nodes.first(where: { $0.name == member }) {
+            select(profileID: profileID, nodeID: node.id, group: group.name)
+            return
+        }
+        if !isActive {
+            applyMemberSelection(index: index, group: group.name, member: member)
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await self.live.select(group: group.name, name: member)
+                if self.library.trafficMode == .global {
+                    try await self.live.select(group: "GLOBAL", name: member)
+                }
+                guard self.activeProfileID == profileID,
+                      let index = self.library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+                self.applyMemberSelection(index: index, group: group.name, member: member)
+                if UserDefaults.standard.object(forKey: "closeConnectionsOnNodeSwitch") as? Bool ?? true {
+                    do { try await self.live.closeAllConnections() }
+                    catch { self.message = "策略已切换，但关闭已有连接失败：\(error.localizedDescription)" }
+                }
+            } catch {
+                self.message = "切换策略失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    private func applyMemberSelection(index: Int, group: String, member: String) {
+        var updated = library
+        updated.selectedProfileID = updated.profiles[index].id
+        updated.profiles[index].clashGroup = group
+        updated.profiles[index].clashSelectedMember = member
+        do {
+            try updated.save()
+            library = updated
+            message = nil
+            issue = nil
+            record("切换策略")
+        } catch { present(error) }
+    }
+
     /// The active profile's node can be switched on the running core; any
     /// other profile still needs a reconnect.
     func canSwitchNodes(for profileID: UUID) -> Bool {
@@ -524,7 +589,8 @@ final class PrototypeVPN {
     private func switchNodeOnLiveCore(profileID: UUID, node: Profile.Node, group: String?) {
         guard let profile = library.profiles.first(where: { $0.id == profileID }) else { return }
         let targetGroup = group ?? Self.group(containing: node, in: profile.clashGroups ?? [])
-        guard let targetGroup, !targetGroup.isEmpty else {
+        let globalMode = library.trafficMode == .global
+        guard globalMode || !(targetGroup ?? "").isEmpty else {
             // No selectable group: keep the choice for the next connection.
             if let index = library.profiles.firstIndex(where: { $0.id == profileID }) {
                 applySelection(index: index, nodeID: node.id, group: nil)
@@ -536,7 +602,12 @@ final class PrototypeVPN {
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await self.live.select(group: targetGroup, name: node.name)
+                if let targetGroup, !targetGroup.isEmpty {
+                    try await self.live.select(group: targetGroup, name: node.name)
+                }
+                if globalMode {
+                    try await self.live.select(group: "GLOBAL", name: node.name)
+                }
                 if UserDefaults.standard.object(forKey: "closeConnectionsOnNodeSwitch") as? Bool ?? true {
                     do {
                         try await self.live.closeAllConnections()
@@ -563,11 +634,13 @@ final class PrototypeVPN {
         var updated = library
         let alreadySelected = updated.selectedProfileID == updated.profiles[index].id
             && (nodeID == nil || updated.profiles[index].selectedNodeID == nodeID)
+            && (nodeID == nil || updated.profiles[index].clashSelectedMember == nil)
             && (group == nil || updated.profiles[index].clashGroup == group)
         guard !alreadySelected else { return }
         updated.selectedProfileID = updated.profiles[index].id
         if let nodeID {
             updated.profiles[index].selectedNodeID = nodeID
+            updated.profiles[index].clashSelectedMember = nil
             if updated.profiles[index].resolvedEngine == .clash,
                let node = updated.profiles[index].nodes.first(where: { $0.id == nodeID }) {
                 let groups = updated.profiles[index].clashGroups ?? []
@@ -1182,7 +1255,7 @@ final class PrototypeVPN {
             ClashTunnelStore.profileKey: profile.id.uuidString,
             ClashTunnelStore.revisionKey: (profile.clashRevision ?? node.id).uuidString,
             ClashTunnelStore.selectedGroupKey: profile.clashGroup ?? "",
-            ClashTunnelStore.selectedNodeKey: node.name,
+            ClashTunnelStore.selectedNodeKey: profile.clashSelectedMember ?? (node.type == "auto" ? "" : node.name),
             ClashTunnelStore.modeKey: library.trafficMode.rawValue
         ]
         manager.protocolConfiguration = provider

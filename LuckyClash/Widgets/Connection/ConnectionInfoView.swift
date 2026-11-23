@@ -42,8 +42,8 @@ extension TrafficMode {
 
     var explanation: String {
         switch self {
-        case .rule: "按配置中的规则分流，未匹配的流量使用 MATCH 策略。"
-        case .global: "忽略规则，所有流量都通过当前代理组。"
+        case .rule: "按配置中的规则分流；如果配置没有规则，则使用默认策略组。"
+        case .global: "忽略规则，所有流量都通过当前选中的节点。"
         case .direct: "不经过代理，所有流量直接连接。"
         }
     }
@@ -111,7 +111,9 @@ struct ConnectionInfoView: View {
     @ViewBuilder private func profileSection(_ profile: Profile) -> some View {
         Section("当前配置") {
             LabeledContent("配置", value: profile.name)
-            if let node = profile.selectedNode {
+            if let member = profile.clashSelectedMember {
+                LabeledContent("策略", value: member)
+            } else if let node = profile.selectedNode {
                 LabeledContent("节点", value: node.name)
                 if let type = node.type, !type.isEmpty {
                     LabeledContent("协议", value: type)

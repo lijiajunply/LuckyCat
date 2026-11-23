@@ -65,8 +65,10 @@ struct Profile: Codable, Identifiable {
     var clashGroups: [ClashImportGroup]? = nil
     var subscription: Subscription? = nil
     var autoUpdate: Bool? = nil
+    var clashSelectedMember: String? = nil
 
     var selectedNode: Node? { nodes.first { $0.id == selectedNodeID } }
+    var selectedOutboundName: String? { clashSelectedMember ?? selectedNode?.name }
     var resolvedEngine: Engine { engine ?? .wireGuard }
     var autoUpdateEnabled: Bool { autoUpdate ?? true }
 }
