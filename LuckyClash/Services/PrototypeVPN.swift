@@ -294,9 +294,10 @@ final class PrototypeVPN {
         }
     }
 
-    func update(_ profile: Profile) async {
+    func update(_ profile: Profile, sourceURL newSourceURL: URL? = nil) async {
         guard libraryLoaded, !busy, !isActive,
-              let sourceURL = profile.sourceURL,
+              let sourceURL = newSourceURL ?? profile.sourceURL,
+              profile.sourceURL != nil,
               let index = library.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
         if profile.resolvedEngine == .clash {
             await updateClash(profile, index: index, sourceURL: sourceURL)
@@ -319,7 +320,26 @@ final class PrototypeVPN {
         }
     }
 
-    private func updateClash(_ profile: Profile, index: Int, sourceURL: URL) async {
+    func configurationText(for profile: Profile) throws -> String {
+        guard let revision = profile.clashRevision else { throw PrototypeError.missingConfiguration }
+        return try ClashTunnelStore.load(profileID: profile.id, revision: revision)
+    }
+
+    func saveConfiguration(_ text: String, for profile: Profile) async -> Bool {
+        guard libraryLoaded, !busy, !isActive,
+              let index = library.profiles.firstIndex(where: { $0.id == profile.id }) else { return false }
+        do {
+            let document = try ClashImport.parse(Data(text.utf8))
+            await updateClash(profile, index: index, sourceURL: profile.sourceURL, replacement: document)
+            return issue == nil
+        } catch {
+            message = Self.describeImport(error)
+            issue = .configuration
+            return false
+        }
+    }
+
+    private func updateClash(_ profile: Profile, index: Int, sourceURL: URL?, replacement: ImportedConfiguration? = nil) async {
         busy = true
         updatingProfileID = profile.id
         defer {
@@ -328,14 +348,23 @@ final class PrototypeVPN {
         }
         let revision = UUID()
         do {
-            let response = try await RemoteImport.download(sourceURL)
-            let metadata = SubscriptionHeader.parse(headers: response.headers)
             let document: ImportedConfiguration
-            do {
-                document = try ClashImport.parse(response.data)
-            } catch {
-                let legacy = try ConfigurationImport.parse(response.data)
-                document = try ClashImport.fromLegacy(legacy)
+            var subscription = sourceURL == profile.sourceURL
+                ? (profile.subscription ?? Profile.Subscription()) : Profile.Subscription()
+            if let replacement {
+                document = replacement
+            } else {
+                guard let sourceURL else { throw PrototypeError.missingConfiguration }
+                let response = try await RemoteImport.download(sourceURL)
+                let metadata = SubscriptionHeader.parse(headers: response.headers)
+                do {
+                    document = try ClashImport.parse(response.data)
+                } catch {
+                    let legacy = try ConfigurationImport.parse(response.data)
+                    document = try ClashImport.fromLegacy(legacy)
+                }
+                Self.merge(metadata.subscription, into: &subscription)
+                subscription.lastUpdated = Date()
             }
             guard let yaml = document.clashYAML else { throw ClashImport.Failure.unreadable }
             try ClashTunnelStore.save(yaml, profileID: profile.id, revision: revision)
@@ -352,10 +381,6 @@ final class PrototypeVPN {
             guard let selected = nodes.first(where: { $0.name == profile.selectedNode?.name }) ?? nodes.first else {
                 throw PrototypeError.missingConfiguration
             }
-            var subscription = profile.subscription ?? Profile.Subscription()
-            Self.merge(metadata.subscription, into: &subscription)
-            subscription.lastUpdated = Date()
-
             var updated = library
             updated.profiles[index] = Profile(
                 id: profile.id, name: profile.name, nodes: nodes, selectedNodeID: selected.id,
@@ -365,12 +390,13 @@ final class PrototypeVPN {
                     ? nil
                     : Self.selectableGroup(for: selected, in: document.groups),
                 clashGroups: document.groups,
-                subscription: subscription, autoUpdate: profile.autoUpdate,
+                subscription: replacement == nil ? subscription : profile.subscription, autoUpdate: profile.autoUpdate,
                 clashSelectedMember: profile.clashGroup.flatMap { group in
                     document.groups.first(where: { $0.name == group && $0.isSelectable })
                         .flatMap { $0.members.contains(profile.clashSelectedMember ?? "") ? profile.clashSelectedMember : nil }
                 }
             )
+            updated.profiles[index].updateIntervalOverrideHours = profile.updateIntervalOverrideHours
             if updated.profiles[index].clashSelectedMember != nil {
                 updated.profiles[index].clashGroup = profile.clashGroup
             }
@@ -394,7 +420,7 @@ final class PrototypeVPN {
             if canRemoveOldRevisions, let previous = profile.clashRevision {
                 ClashTunnelStore.remove(revision: previous)
             }
-            message = document.warnings.isEmpty ? nil : document.warnings.joined(separator: " ")
+            message = document.warnings.isEmpty ? (replacement == nil ? "订阅更新成功。" : "配置已保存。") : document.warnings.joined(separator: " ")
             issue = nil
             record("配置已更新")
         } catch {
@@ -714,6 +740,17 @@ final class PrototypeVPN {
         }
     }
 
+    func setUpdateInterval(_ hours: Int?, for profileID: UUID) {
+        guard libraryLoaded, !busy, !isActive,
+              let index = library.profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        var updated = library
+        updated.profiles[index].updateIntervalOverrideHours = hours
+        do {
+            try updated.save()
+            library = updated
+        } catch { present(error) }
+    }
+
     func rename(profileID: UUID, to newName: String) {
         let name = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
         guard libraryLoaded, !busy, !isActive, !name.isEmpty,
@@ -961,9 +998,15 @@ final class PrototypeVPN {
 
     func updateAll() async {
         guard !busy, !isActive else { return }
-        for profile in library.profiles where profile.sourceURL != nil {
+        let profiles = library.profiles.filter { $0.sourceURL != nil }
+        var failures: [String] = []
+        for profile in profiles {
+            guard !isActive else { break }
             await update(profile)
+            if issue != nil { failures.append("\(profile.name)：\(message ?? "更新失败")") }
         }
+        message = failures.isEmpty ? "已更新 \(profiles.count) 个订阅。" : failures.joined(separator: "\n")
+        issue = failures.isEmpty ? nil : .configuration
     }
 
     func updateDueProfiles() async {
@@ -972,7 +1015,7 @@ final class PrototypeVPN {
         let due = library.profiles.filter { profile in
             guard profile.sourceURL != nil, profile.autoUpdateEnabled,
                   let last = profile.subscription?.lastUpdated else { return false }
-            let hours = profile.subscription?.updateIntervalHours ?? 24
+            let hours = profile.updateIntervalOverrideHours ?? profile.subscription?.updateIntervalHours ?? 24
             return now.timeIntervalSince(last) >= TimeInterval(hours * 3600)
         }
         for profile in due {

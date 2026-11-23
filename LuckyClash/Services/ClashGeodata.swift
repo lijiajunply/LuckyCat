@@ -51,8 +51,8 @@ enum ClashGeodata {
         return upper.contains("GEOIP,") || upper.contains("GEOSITE,")
     }
 
-    nonisolated static func ensure(yaml: String) async throws {
-        guard isRequired(yaml) else { return }
+    nonisolated static func ensure(yaml: String, force: Bool = false) async throws {
+        guard force || isRequired(yaml) else { return }
         let directory = try workingDirectory()
         let endpoints = endpoints(from: yaml)
 
@@ -69,12 +69,28 @@ enum ClashGeodata {
             )
         ] {
             let destination = directory.appending(path: source.name)
-            if isUsable(destination) { continue }
+            if !force && isUsable(destination) { continue }
             let data = try await download(source)
             try data.write(
                 to: destination,
                 options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
             )
+        }
+    }
+
+    struct Status: Identifiable {
+        let name: String
+        let size: Int64?
+        let modified: Date?
+        var id: String { name }
+    }
+
+    nonisolated static func status() throws -> [Status] {
+        let directory = try workingDirectory()
+        return [geoIPFileName, geoSiteFileName].map { name in
+            let attributes = try? FileManager.default.attributesOfItem(atPath: directory.appending(path: name).path)
+            let size = (attributes?[.size] as? NSNumber)?.int64Value
+            return Status(name: name, size: size, modified: attributes?[.modificationDate] as? Date)
         }
     }
 

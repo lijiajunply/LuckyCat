@@ -6,6 +6,7 @@ struct ProfileDetailView: View {
     let profileID: UUID
 
     @State private var draftName = ""
+    @State private var draftURL = ""
     @State private var showingDelete = false
 
     private var profile: Profile? {
@@ -33,6 +34,17 @@ struct ProfileDetailView: View {
                         }
                     }
 
+                    if profile.resolvedEngine == .clash {
+                        Section("配置内容") {
+                            NavigationLink("查看和编辑 YAML") {
+                                ConfigurationEditorView(vpn: vpn, profileID: profile.id)
+                            }
+                            .disabled(vpn.busy || vpn.isActive)
+                            Text("编辑前请断开 VPN。订阅更新会覆盖本地修改。")
+                                .font(.footnote).foregroundStyle(.secondary)
+                        }
+                    }
+
                     Section("当前配置") {
                         LabeledContent("节点", value: profile.selectedOutboundName ?? "未选择")
                         LabeledContent(
@@ -46,6 +58,16 @@ struct ProfileDetailView: View {
 
                     if profile.sourceURL != nil {
                         Section("订阅") {
+                            TextField("订阅 URL", text: $draftURL, axis: .vertical)
+                                .keyboardType(.URL)
+                                .textContentType(.URL)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .lineLimit(2...5)
+                                .accessibilityIdentifier("profile-detail-url")
+                                .disabled(vpn.busy || vpn.isActive)
+                            Text("修改链接后点击更新订阅；获取成功后保存新链接。")
+                                .font(.footnote).foregroundStyle(.secondary)
                             if let subscription = profile.subscription {
                                 LabeledContent("流量", value: ImportSummary.flow(subscription))
                                 LabeledContent("到期", value: ImportSummary.expiry(subscription.expire))
@@ -58,8 +80,28 @@ struct ProfileDetailView: View {
                             }
                             Toggle("自动更新", isOn: autoUpdateBinding(profile.id))
                                 .disabled(vpn.busy || vpn.isActive)
+                            Picker("更新间隔", selection: Binding(
+                                get: { profile.updateIntervalOverrideHours ?? 0 },
+                                set: { vpn.setUpdateInterval($0 == 0 ? nil : $0, for: profile.id) }
+                            )) {
+                                Text("跟随订阅（默认 24 小时）").tag(0)
+                                Text("6 小时").tag(6)
+                                Text("12 小时").tag(12)
+                                Text("24 小时").tag(24)
+                                Text("3 天").tag(72)
+                                Text("7 天").tag(168)
+                            }.disabled(vpn.busy || vpn.isActive || !profile.autoUpdateEnabled)
                             Button {
-                                Task { await vpn.update(profile) }
+                                guard let url = RemoteImport.url(from: draftURL) else {
+                                    vpn.message = "请输入有效的 HTTPS 配置链接。"
+                                    return
+                                }
+                                Task {
+                                    await vpn.update(profile, sourceURL: url)
+                                    if let savedURL = self.profile?.sourceURL, savedURL == url {
+                                        draftURL = savedURL.absoluteString
+                                    }
+                                }
                             } label: {
                                 if vpn.updatingProfileID == profile.id {
                                     HStack {
@@ -135,6 +177,7 @@ struct ProfileDetailView: View {
                 if draftName.isEmpty {
                     draftName = profile?.name ?? ""
                 }
+                draftURL = profile?.sourceURL?.absoluteString ?? ""
             }
             .alert("删除配置？", isPresented: $showingDelete) {
                 Button("取消", role: .cancel) {}

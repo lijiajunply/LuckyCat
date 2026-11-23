@@ -66,6 +66,7 @@ struct Profile: Codable, Identifiable {
     var subscription: Subscription? = nil
     var autoUpdate: Bool? = nil
     var clashSelectedMember: String? = nil
+    var updateIntervalOverrideHours: Int? = nil
 
     var selectedNode: Node? { nodes.first { $0.id == selectedNodeID } }
     var selectedOutboundName: String? { clashSelectedMember ?? selectedNode?.name }

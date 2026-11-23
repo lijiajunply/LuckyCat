@@ -8,7 +8,13 @@ struct SettingsPage: View {
     var body: some View {
         NavigationStack {
             List {
-                Toggle("切换节点时关闭已有连接", isOn: $closeConnectionsOnNodeSwitch)
+                Section("配置与资源") {
+                    NavigationLink("订阅管理") { SubscriptionManagementView(vpn: vpn) }
+                    NavigationLink("资源管理") { ResourceManagementView(vpn: vpn) }
+                }
+                Section("连接") {
+                    Toggle("切换节点时关闭已有连接", isOn: $closeConnectionsOnNodeSwitch)
+                }
                 Section("延迟测试") {
                     TextField("默认测试链接", text: $latencyTestURL)
                         .keyboardType(.URL)
@@ -17,6 +23,7 @@ struct SettingsPage: View {
                     Text("策略组配置了测试链接时优先使用策略组的链接。")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+                Section("信息与诊断") {
                 NavigationLink("隐私与数据使用") {
                     List { Text(AppDisclosure.text) }
                         .navigationTitle("隐私与数据使用")
@@ -34,6 +41,7 @@ struct SettingsPage: View {
                     .navigationTitle("配置兼容性")
                 }
                 NavigationLink("本地诊断") { DiagnosticsView(log: vpn.diagnostics) }
+                }
             }
             .navigationTitle("设置")
         }
