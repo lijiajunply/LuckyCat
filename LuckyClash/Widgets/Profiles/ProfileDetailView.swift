@@ -80,7 +80,7 @@ struct ProfileDetailView: View {
                             }
                             Toggle("自动更新", isOn: autoUpdateBinding(profile.id))
                                 .disabled(vpn.busy || vpn.isActive)
-                            Picker("更新间隔", selection: Binding(
+                            Picker("自动更新间隔", selection: Binding(
                                 get: { profile.updateIntervalOverrideHours ?? 0 },
                                 set: { vpn.setUpdateInterval($0 == 0 ? nil : $0, for: profile.id) }
                             )) {
@@ -91,6 +91,16 @@ struct ProfileDetailView: View {
                                 Text("3 天").tag(72)
                                 Text("7 天").tag(168)
                             }.disabled(vpn.busy || vpn.isActive || !profile.autoUpdateEnabled)
+                            if profile.autoUpdateEnabled {
+                                if let next = profile.nextAutoUpdateDate {
+                                    LabeledContent(
+                                        "下次可自动更新",
+                                        value: next.formatted(date: .abbreviated, time: .shortened)
+                                    )
+                                }
+                                Text("到期后，下次在 VPN 已断开时打开 App 或回到前台会尝试更新。")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
                             Button {
                                 guard let url = RemoteImport.url(from: draftURL) else {
                                     vpn.message = "请输入有效的 HTTPS 配置链接。"

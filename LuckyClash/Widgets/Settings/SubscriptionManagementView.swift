@@ -25,7 +25,7 @@ struct SubscriptionManagementView: View {
                 }.disabled(subscriptions.isEmpty || vpn.busy || vpn.isActive)
                 if let message = vpn.message { MessageLabel(text: message) }
             } footer: {
-                Text("自动更新在打开 App 时检查，不会在后台定时运行。更新前请断开 VPN。")
+                Text("打开 App 或回到前台时，会尝试更新已到期且开启自动更新的订阅。更新前请断开 VPN。")
             }
         }
         .navigationTitle("订阅管理")

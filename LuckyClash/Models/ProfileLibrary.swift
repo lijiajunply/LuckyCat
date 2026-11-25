@@ -72,6 +72,19 @@ struct Profile: Codable, Identifiable {
     var selectedOutboundName: String? { clashSelectedMember ?? selectedNode?.name }
     var resolvedEngine: Engine { engine ?? .wireGuard }
     var autoUpdateEnabled: Bool { autoUpdate ?? true }
+
+    var nextAutoUpdateDate: Date? {
+        guard sourceURL != nil, autoUpdateEnabled, let lastUpdated = subscription?.lastUpdated else {
+            return nil
+        }
+        let hours = updateIntervalOverrideHours ?? subscription?.updateIntervalHours ?? 24
+        return lastUpdated.addingTimeInterval(TimeInterval(max(1, hours)) * 3600)
+    }
+
+    func isAutoUpdateDue(at date: Date) -> Bool {
+        guard sourceURL != nil, autoUpdateEnabled else { return false }
+        return nextAutoUpdateDate.map { $0 <= date } ?? true
+    }
 }
 
 struct ProfileLibrary: Codable {

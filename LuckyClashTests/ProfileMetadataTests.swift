@@ -44,6 +44,38 @@ struct ProfileMetadataTests {
         #expect(decoded.selectedOutboundName == "自动选择")
     }
 
+    @Test func subscriptionIsDueAtTheConfiguredInterval() {
+        let lastUpdate = Date(timeIntervalSince1970: 1_700_000_000)
+        var profile = Profile(
+            id: UUID(), name: "Subscription", nodes: [], selectedNodeID: UUID(),
+            sourceURL: URL(string: "https://example.com/config.yaml"),
+            subscription: Profile.Subscription()
+        )
+        profile.subscription?.lastUpdated = lastUpdate
+        #expect(profile.nextAutoUpdateDate == lastUpdate.addingTimeInterval(24 * 3600))
+
+        profile.subscription?.updateIntervalHours = 12
+        #expect(profile.nextAutoUpdateDate == lastUpdate.addingTimeInterval(12 * 3600))
+
+        profile.updateIntervalOverrideHours = 6
+        let due = lastUpdate.addingTimeInterval(6 * 3600)
+        #expect(profile.nextAutoUpdateDate == due)
+        #expect(!profile.isAutoUpdateDue(at: due.addingTimeInterval(-1)))
+        #expect(profile.isAutoUpdateDue(at: due))
+    }
+
+    @Test func subscriptionWithoutUpdateHistoryIsDueIfEnabled() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        var profile = Profile(id: UUID(), name: "Legacy", nodes: [], selectedNodeID: UUID())
+        #expect(!profile.isAutoUpdateDue(at: now))
+
+        profile.sourceURL = URL(string: "https://example.com/config.yaml")
+        #expect(profile.isAutoUpdateDue(at: now))
+
+        profile.autoUpdate = false
+        #expect(!profile.isAutoUpdateDue(at: now))
+    }
+
     @Test func roundTripsSourceURLRulesAndMode() throws {
         let profileID = UUID()
         let profile = Profile(

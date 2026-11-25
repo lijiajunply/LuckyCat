@@ -122,16 +122,11 @@ struct ContentView: View {
         } message: { profile in
             Text("将从本机删除「\(profile.name)」及其节点凭据。")
         }
-        .task {
-            await vpn.refresh()
-            await vpn.updateDueProfiles()
-        }
-        .onChange(of: scenePhase) {
-            if scenePhase == .active {
-                Task {
-                    await vpn.refresh()
-                    await vpn.updateDueProfiles()
-                }
+        .onChange(of: scenePhase, initial: true) {
+            guard scenePhase == .active else { return }
+            Task {
+                await vpn.refresh()
+                await vpn.updateDueProfiles()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NEVPNStatusDidChange)) { _ in

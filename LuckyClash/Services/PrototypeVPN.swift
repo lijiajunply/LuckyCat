@@ -1010,15 +1010,12 @@ final class PrototypeVPN {
     }
 
     func updateDueProfiles() async {
-        guard !busy, !isActive else { return }
+        guard libraryLoaded, !busy, !isActive else { return }
         let now = Date()
-        let due = library.profiles.filter { profile in
-            guard profile.sourceURL != nil, profile.autoUpdateEnabled,
-                  let last = profile.subscription?.lastUpdated else { return false }
-            let hours = profile.updateIntervalOverrideHours ?? profile.subscription?.updateIntervalHours ?? 24
-            return now.timeIntervalSince(last) >= TimeInterval(hours * 3600)
-        }
-        for profile in due {
+        for id in library.profiles.map(\.id) {
+            guard !busy, !isActive else { return }
+            guard let profile = library.profiles.first(where: { $0.id == id }),
+                  profile.isAutoUpdateDue(at: now) else { continue }
             await update(profile)
         }
     }
