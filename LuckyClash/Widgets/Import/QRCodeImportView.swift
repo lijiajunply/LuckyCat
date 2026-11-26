@@ -18,38 +18,81 @@ struct QRCodeImportView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            if authorization == .authorized && cameraAvailable {
+                QRScannerView { handle($0) }
+                    .ignoresSafeArea()
+            }
+
             VStack(spacing: 0) {
+                header
                 scannerArea
-                albumButton
-                    .padding(.horizontal)
-                    .padding(.vertical, 16)
-                if let error {
-                    Text(error)
-                        .foregroundStyle(.orange)
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                        .padding(.bottom, 12)
+                footer
+            }
+        }
+        .foregroundStyle(.white)
+        .preferredColorScheme(.dark)
+        .accessibilityAction(.escape) { dismiss() }
+        .task {
+            if authorization == .notDetermined {
+                _ = await AVCaptureDevice.requestAccess(for: .video)
+                authorization = AVCaptureDevice.authorizationStatus(for: .video)
+            }
+        }
+        .onChange(of: photoItem) { _, item in
+            guard let item else { return }
+            Task { await decode(item) }
+        }
+    }
+
+    private var header: some View {
+        Text("二维码导入")
+            .font(.headline)
+            .accessibilityAddTraits(.isHeader)
+            .padding(.horizontal, 64)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .overlay(alignment: .topLeading) {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .frame(width: 44, height: 44)
+                        .background(.black.opacity(0.55), in: Circle())
                 }
+                .buttonStyle(.plain)
+                .accessibilityLabel("取消")
+                .padding(.leading, 16)
             }
-            .navigationTitle("二维码导入")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
-                }
+            .padding(.vertical, 8)
+            .background {
+                LinearGradient(colors: [.black.opacity(0.8), .black.opacity(0.55)],
+                               startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea(edges: .top)
             }
-            .task {
-                if authorization == .notDetermined {
-                    _ = await AVCaptureDevice.requestAccess(for: .video)
-                    authorization = AVCaptureDevice.authorizationStatus(for: .video)
-                }
+    }
+
+    private var footer: some View {
+        VStack(spacing: 12) {
+            Text("支持订阅链接、clash:// 链接和分享链接")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+            albumButton
+            if let error {
+                Text(error)
+                    .foregroundStyle(.orange)
+                    .font(.footnote)
             }
-            .onChange(of: photoItem) { _, item in
-                guard let item else { return }
-                Task { await decode(item) }
-            }
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity)
+        .background {
+            LinearGradient(colors: [.black.opacity(0.55), .black.opacity(0.9)],
+                           startPoint: .top, endPoint: .bottom)
+                .ignoresSafeArea(edges: .bottom)
         }
     }
 
@@ -57,13 +100,7 @@ struct QRCodeImportView: View {
         switch authorization {
         case .authorized:
             if cameraAvailable {
-                ZStack {
-                    QRScannerView { handle($0) }
-                        .ignoresSafeArea(edges: .bottom)
-                    scannerOverlay
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.black)
+                scannerOverlay
             } else {
                 unavailable("当前设备没有可用的相机", systemImage: "camera.fill")
             }
@@ -85,23 +122,34 @@ struct QRCodeImportView: View {
     }
 
     private var scannerOverlay: some View {
-        VStack {
-            Spacer()
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.9), lineWidth: 3)
-                .frame(width: 240, height: 240)
-            Text("将配置二维码放入取景框")
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(.white)
-                .padding(.top, 16)
-            Spacer()
-            Text("支持订阅链接、clash:// 链接和分享链接")
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.75))
-                .padding(.bottom, 12)
+        GeometryReader { geometry in
+            let bounds = CGRect(origin: .zero, size: geometry.size)
+            let side = min(280, bounds.width * 0.64, bounds.height * 0.54)
+            let frame = CGRect(x: bounds.midX - side / 2, y: bounds.height * 0.43 - side / 2,
+                               width: side, height: side)
+            let radius = min(22, side * 0.12)
+
+            ZStack(alignment: .top) {
+                Path { path in
+                    path.addRect(bounds)
+                    path.addRoundedRect(in: frame, cornerSize: CGSize(width: radius, height: radius))
+                }
+                .fill(.black.opacity(0.55), style: FillStyle(eoFill: true))
+                .accessibilityHidden(true)
+
+                QRScanCorners(radius: radius)
+                    .stroke(.white, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    .frame(width: side, height: side)
+                    .position(x: frame.midX, y: frame.midY)
+                    .accessibilityHidden(true)
+
+                Text("将配置二维码放入取景框")
+                    .font(.subheadline.weight(.medium))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 24)
+                    .padding(.top, frame.maxY + 16)
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.opacity(0.25))
         .allowsHitTesting(false)
     }
 
@@ -125,10 +173,15 @@ struct QRCodeImportView: View {
 
     private var albumButton: some View {
         PhotosPicker(selection: $photoItem, matching: .images) {
-            Label("从相册选择二维码", systemImage: "photo.on.rectangle")
-                .frame(maxWidth: .infinity)
+            Label("从相册选择", systemImage: "photo.on.rectangle")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .frame(minHeight: 44)
+                .background(.white.opacity(0.16), in: Capsule())
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.plain)
+        .accessibilityLabel("从相册选择二维码")
         .accessibilityIdentifier("qr-photo-picker")
     }
 
@@ -158,6 +211,27 @@ struct QRCodeImportView: View {
             handle(code)
         } catch {
             self.error = "无法读取所选图片。"
+        }
+    }
+}
+
+private struct QRScanCorners: Shape {
+    let radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let length = min(36, rect.width * 0.2)
+        let corner = Path { path in
+            path.move(to: CGPoint(x: 0, y: length))
+            path.addLine(to: CGPoint(x: 0, y: radius))
+            path.addQuadCurve(to: CGPoint(x: radius, y: 0), control: .zero)
+            path.addLine(to: CGPoint(x: length, y: 0))
+        }
+
+        return Path { path in
+            path.addPath(corner, transform: CGAffineTransform(translationX: rect.minX, y: rect.minY))
+            path.addPath(corner, transform: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: rect.maxX, ty: rect.minY))
+            path.addPath(corner, transform: CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: rect.minX, ty: rect.maxY))
+            path.addPath(corner, transform: CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: rect.maxX, ty: rect.maxY))
         }
     }
 }

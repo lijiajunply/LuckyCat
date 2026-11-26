@@ -93,7 +93,7 @@ struct ContentView: View {
         .sheet(isPresented: $showingURLImport, onDismiss: presentStagedPreview) {
             URLImport(vpn: vpn, name: $pendingImportName)
         }
-        .sheet(isPresented: $showingQRImport, onDismiss: importQRCode) {
+        .fullScreenCover(isPresented: $showingQRImport, onDismiss: importQRCode) {
             QRCodeImportView { code in
                 pendingQRPayload = code
                 showingQRImport = false
