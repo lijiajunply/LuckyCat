@@ -3,9 +3,11 @@ import SwiftUI
 struct ToastMessage: Equatable {
     let id = UUID()
     let text: String
+    var isSuccess = false
 
     var duration: Duration {
-        .seconds(min(12, max(4, Double(text.count) / 10)))
+        if isSuccess { return .seconds(3) }
+        return .seconds(min(12, max(4, Double(text.count) / 10)))
     }
 }
 
@@ -26,9 +28,9 @@ private struct ToastPresenter: ViewModifier {
         content
             .overlay(alignment: .top) {
                 if enabled, let visibleMessage {
-                    banner(visibleMessage.text)
+                    toastContent(visibleMessage)
                         .padding(.horizontal, 16)
-                        .padding(.top, 8)
+                        .padding(.top, visibleMessage.isSuccess ? 52 : 8)
                         .transition(.opacity)
                 }
             }
@@ -52,6 +54,20 @@ private struct ToastPresenter: ViewModifier {
                     // A newer message or a dismissed presentation cancelled the timer.
                 }
             }
+    }
+
+    @ViewBuilder private func toastContent(_ message: ToastMessage) -> some View {
+        if message.isSuccess {
+            Label(message.text, systemImage: "checkmark")
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.regularMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+                .allowsHitTesting(false)
+        } else {
+            banner(message.text)
+        }
     }
 
     private func banner(_ text: String) -> some View {
@@ -95,7 +111,7 @@ private struct ToastPresenter: ViewModifier {
 
     NavigationStack {
         List {
-            Button("更新订阅") { message = ToastMessage(text: "订阅更新成功。") }
+            Button("更新订阅") { message = ToastMessage(text: "订阅已更新", isSuccess: true) }
         }
         .navigationTitle("订阅管理")
     }

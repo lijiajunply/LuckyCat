@@ -20,9 +20,16 @@ struct SubscriptionManagementView: View {
                         }
                     }.foregroundStyle(.primary)
                 }
-                Button("更新全部订阅", systemImage: "arrow.clockwise") {
+                Button {
                     Task { await vpn.updateAll() }
-                }.disabled(subscriptions.isEmpty || vpn.busy || vpn.isActive)
+                } label: {
+                    if vpn.updatingProfileID != nil {
+                        ProgressView("正在更新订阅…")
+                    } else {
+                        Label("更新全部订阅", systemImage: "arrow.clockwise")
+                    }
+                }
+                .disabled(subscriptions.isEmpty || vpn.busy || vpn.isActive)
             } footer: {
                 Text("打开 App 或回到前台时，会尝试更新已到期且开启自动更新的订阅。更新前请断开 VPN。")
             }

@@ -20,6 +20,7 @@ final class PrototypeVPN {
     private(set) var status: NEVPNStatus = .invalid
     private(set) var busy = false
     private(set) var requestingConnection = false
+    private(set) var connectionPreparation: String?
     private(set) var imported: [ImportedNode] = []
     private(set) var importedRules: [RoutingRule] = []
     private(set) var importWarnings: [String] = []
@@ -60,8 +61,8 @@ final class PrototypeVPN {
         }
     }
 
-    func showToast(_ text: String) {
-        toast = ToastMessage(text: text)
+    func showToast(_ text: String, isSuccess: Bool = false) {
+        toast = ToastMessage(text: text, isSuccess: isSuccess)
     }
 
     private let latencyTester = ClashLatencyTester.shared
@@ -306,13 +307,13 @@ final class PrototypeVPN {
         }
     }
 
-    func update(_ profile: Profile, sourceURL newSourceURL: URL? = nil) async {
+    func update(_ profile: Profile, sourceURL newSourceURL: URL? = nil, showSuccess: Bool = true) async {
         guard libraryLoaded, !busy, !isActive,
               let sourceURL = newSourceURL ?? profile.sourceURL,
               profile.sourceURL != nil,
               let index = library.profiles.firstIndex(where: { $0.id == profile.id }) else { return }
         if profile.resolvedEngine == .clash {
-            await updateClash(profile, index: index, sourceURL: sourceURL)
+            await updateClash(profile, index: index, sourceURL: sourceURL, showSuccess: showSuccess)
             return
         }
         busy = true
@@ -325,7 +326,7 @@ final class PrototypeVPN {
             let migrated = try await migrateLegacy(
                 profile, index: index, rewriteManager: true
             )
-            await updateClash(migrated, index: index, sourceURL: sourceURL)
+            await updateClash(migrated, index: index, sourceURL: sourceURL, showSuccess: showSuccess)
         } catch {
             message = Self.describeImport(error)
             issue = .configuration
@@ -351,7 +352,10 @@ final class PrototypeVPN {
         }
     }
 
-    private func updateClash(_ profile: Profile, index: Int, sourceURL: URL?, replacement: ImportedConfiguration? = nil) async {
+    private func updateClash(
+        _ profile: Profile, index: Int, sourceURL: URL?,
+        replacement: ImportedConfiguration? = nil, showSuccess: Bool = true
+    ) async {
         busy = true
         updatingProfileID = profile.id
         defer {
@@ -432,7 +436,14 @@ final class PrototypeVPN {
             if canRemoveOldRevisions, let previous = profile.clashRevision {
                 ClashTunnelStore.remove(revision: previous)
             }
-            message = document.warnings.isEmpty ? (replacement == nil ? "订阅更新成功。" : "配置已保存。") : document.warnings.joined(separator: " ")
+            if document.warnings.isEmpty {
+                operationMessage = nil
+                if showSuccess {
+                    showToast(replacement == nil ? "订阅已更新" : "配置已保存", isSuccess: true)
+                }
+            } else {
+                message = document.warnings.joined(separator: " ")
+            }
             issue = nil
             record("配置已更新")
         } catch {
@@ -521,7 +532,6 @@ final class PrototypeVPN {
         applySelection(index: index, nodeID: nil)
         guard library.selectedProfileID == profileID, reconnect else { return }
         switchingProfile = true
-        message = "正在切换配置并重新连接…"
         Task { [weak self] in
             guard let self else { return }
             defer { self.switchingProfile = false }
@@ -1011,15 +1021,27 @@ final class PrototypeVPN {
     }
 
     func updateAll() async {
-        guard !busy, !isActive else { return }
+        guard libraryLoaded, !busy, !isActive else { return }
         let profiles = library.profiles.filter { $0.sourceURL != nil }
         var failures: [String] = []
+        var warnings: [String] = []
+        var updatedCount = 0
         for profile in profiles {
             guard !isActive else { break }
-            await update(profile)
-            if issue != nil { failures.append("\(profile.name)：\(message ?? "更新失败")") }
+            await update(profile, showSuccess: false)
+            if issue != nil {
+                failures.append("\(profile.name)：\(message ?? "更新失败")")
+            } else {
+                updatedCount += 1
+                if let message { warnings.append("\(profile.name)：\(message)") }
+            }
         }
-        message = failures.isEmpty ? "已更新 \(profiles.count) 个订阅。" : failures.joined(separator: "\n")
+        let notices = failures + warnings
+        if !notices.isEmpty {
+            message = notices.joined(separator: "\n")
+        } else if updatedCount > 0 {
+            showToast("已更新 \(updatedCount) 个订阅", isSuccess: true)
+        }
         issue = failures.isEmpty ? nil : .configuration
     }
 
@@ -1030,7 +1052,7 @@ final class PrototypeVPN {
             guard !busy, !isActive else { return }
             guard let profile = library.profiles.first(where: { $0.id == id }),
                   profile.isAutoUpdateDue(at: now) else { continue }
-            await update(profile)
+            await update(profile, showSuccess: false)
         }
     }
 
@@ -1071,7 +1093,11 @@ final class PrototypeVPN {
         #else
         guard !busy, !isActive else { return }
         busy = true
-        defer { busy = false }
+        connectionPreparation = "正在准备连接…"
+        defer {
+            connectionPreparation = nil
+            busy = false
+        }
         intentionalStop = false
         message = nil
         issue = nil
@@ -1090,11 +1116,11 @@ final class PrototypeVPN {
                 }
                 var profile = selectedProfile
                 if profile.resolvedEngine == .wireGuard {
-                    message = "正在迁移旧版 WireGuard 配置…"
+                    connectionPreparation = "正在迁移旧版 WireGuard 配置…"
                     profile = try await migrateLegacy(
                         profile, index: index, rewriteManager: false
                     )
-                    message = nil
+                    connectionPreparation = "正在准备连接…"
                 }
                 guard let node = profile.selectedNode else {
                     throw PrototypeError.missingConfiguration
@@ -1102,9 +1128,9 @@ final class PrototypeVPN {
                 let revision = profile.clashRevision ?? node.id
                 let yaml = try ClashTunnelStore.load(profileID: profile.id, revision: revision)
                 if ClashGeodata.isRequired(yaml) {
-                    message = "正在准备 GeoIP 数据…"
+                    connectionPreparation = "正在准备 GeoIP 数据…"
                     try await ClashGeodata.ensure(yaml: yaml)
-                    message = nil
+                    connectionPreparation = "正在准备连接…"
                 }
                 selected = try await saveClash(
                     profile: profile, node: node, to: existing ?? NETunnelProviderManager()
@@ -1121,6 +1147,7 @@ final class PrototypeVPN {
             let request = UUID()
             connectionRequest = request
             requestingConnection = true
+            connectionPreparation = nil
             network.start()
             do {
                 try session.startTunnel(options: nil)
@@ -1137,14 +1164,14 @@ final class PrototypeVPN {
                     self.clearConnectionRequest()
                     await self.updateStatus()
                     if self.status == .disconnected {
-                        self.message = "iOS 未启动连接，请检查系统 VPN 设置。"
+                        self.operationMessage = "iOS 未启动连接，请检查系统 VPN 设置。"
                         self.issue = .permission
                         self.network.stop()
                     }
                 }
             }
         } catch {
-            present(error)
+            present(error, inConnection: true)
             if !isActive {
                 network.stop()
             }
@@ -1218,7 +1245,7 @@ final class PrototypeVPN {
             error = disconnectError as NSError
         }
         guard statusChangedAt == update, manager?.connection === connection, let error else { return }
-        present(error)
+        present(error, inConnection: true)
         record("断开错误码 \(error.code)")
     }
 
@@ -1328,9 +1355,13 @@ final class PrototypeVPN {
         diagnostics.append(event)
     }
 
-    private func present(_ error: Error) {
-        message = Self.describe(error)
+    private func present(_ error: Error, inConnection: Bool = false) {
         issue = Self.issue(for: error)
+        if inConnection, issue == .permission, library.selectedProfile != nil {
+            operationMessage = Self.describe(error)
+        } else {
+            message = Self.describe(error)
+        }
     }
 
     static func issue(for error: Error) -> Issue? {

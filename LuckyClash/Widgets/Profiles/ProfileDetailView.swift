@@ -7,6 +7,7 @@ struct ProfileDetailView: View {
 
     @State private var draftName = ""
     @State private var draftURL = ""
+    @State private var showsURLError = false
     @State private var showingDelete = false
 
     private var profile: Profile? {
@@ -61,8 +62,16 @@ struct ProfileDetailView: View {
                                 .lineLimit(2...5)
                                 .accessibilityIdentifier("profile-detail-url")
                                 .disabled(vpn.busy || vpn.isActive)
-                            Text("修改链接后点击更新订阅；获取成功后保存新链接。")
-                                .font(.footnote).foregroundStyle(.secondary)
+                                .onChange(of: draftURL) {
+                                    if RemoteImport.url(from: draftURL) != nil { showsURLError = false }
+                                }
+                            if showsURLError {
+                                Text("请检查订阅链接的地址，并使用 HTTPS。")
+                                    .font(.footnote).foregroundStyle(.red)
+                            } else {
+                                Text("修改链接后点击更新订阅；获取成功后保存新链接。")
+                                    .font(.footnote).foregroundStyle(.secondary)
+                            }
                             if let subscription = profile.subscription {
                                 LabeledContent("流量", value: ImportSummary.flow(subscription))
                                 LabeledContent("到期", value: ImportSummary.expiry(subscription.expire))
@@ -98,7 +107,7 @@ struct ProfileDetailView: View {
                             }
                             Button {
                                 guard let url = RemoteImport.url(from: draftURL) else {
-                                    vpn.showToast("请输入有效的 HTTPS 配置链接。")
+                                    showsURLError = true
                                     return
                                 }
                                 Task {

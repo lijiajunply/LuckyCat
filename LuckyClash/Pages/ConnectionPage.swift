@@ -65,10 +65,23 @@ struct ConnectionPage: View {
                 if vpn.library.selectedProfile != nil {
                     Section {
                         Toggle(isOn: connectionBinding) {
-                            Label(connectionBinding.wrappedValue ? "已连接" : "未连接", systemImage: "bolt.shield")
+                            if let connectionProgress {
+                                ProgressView(connectionProgress)
+                                    .controlSize(.small)
+                            } else {
+                                Label(VPNStatusText.status(vpn), systemImage: "bolt.shield")
+                            }
                         }
                         .disabled(connectToggleDisabled)
                         .accessibilityIdentifier("connect-vpn")
+                        if vpn.issue == .permission {
+                            if let message = vpn.message {
+                                Text(message)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                            recovery(.permission)
+                        }
                     }
                 }
 
@@ -78,7 +91,8 @@ struct ConnectionPage: View {
 
                 networkDetectionSection
 
-                if let issue = vpn.issue, issue != .storage {
+                if let issue = vpn.issue, issue != .storage,
+                   issue != .permission || vpn.library.selectedProfile == nil {
                     Section("恢复") {
                         recovery(issue)
                     }
@@ -277,6 +291,15 @@ struct ConnectionPage: View {
     private var connectToggleDisabled: Bool {
         if vpn.library.selectedProfile == nil { return true }
         return vpn.switchingProfile || vpn.busy || (vpn.isActive && !vpn.canStop)
+    }
+
+    private var connectionProgress: String? {
+        if vpn.switchingProfile || vpn.connectionPreparation != nil || vpn.requestingConnection
+            || (vpn.isActive && !vpn.canStop)
+            || [.connecting, .reasserting, .disconnecting].contains(vpn.status) {
+            return VPNStatusText.status(vpn)
+        }
+        return nil
     }
 
     private var modeBinding: Binding<TrafficMode> {

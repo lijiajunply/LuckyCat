@@ -47,7 +47,7 @@ struct ResourceManagementView: View {
                             let yaml = try vpn.library.selectedProfile.map { try vpn.configurationText(for: $0) } ?? ""
                             try await ClashGeodata.ensure(yaml: yaml, force: true)
                             resources = try ClashGeodata.status()
-                            vpn.showToast("资源更新完成。")
+                            vpn.showToast("资源已更新", isSuccess: true)
                         } catch { vpn.showToast(error.localizedDescription) }
                     }
                 } label: {

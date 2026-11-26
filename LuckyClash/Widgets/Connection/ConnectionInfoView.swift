@@ -5,6 +5,8 @@ import SwiftUI
 /// connection information sheet.
 enum VPNStatusText {
     static func status(_ vpn: PrototypeVPN) -> String {
+        if vpn.switchingProfile { return "正在切换配置并重新连接…" }
+        if let preparation = vpn.connectionPreparation { return preparation }
         if vpn.requestingConnection { return "正在请求连接" }
         if vpn.isActive && !vpn.canStop { return "断开中" }
         switch vpn.status {
