@@ -13,6 +13,7 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
                 return
             }
             guard let selection = self.clashSelection() else {
+                VPNWidgetStatus.disconnected.publish()
                 completionHandler(PrototypeError.missingConfiguration)
                 return
             }
@@ -26,10 +27,12 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
                 mode: selection.mode
             ) { error in
                 self.lifecycle.async {
+                    guard self.clash === engine else { return }
                     if error != nil {
                         self.clash = nil
                     }
                     self.finishStart(error)
+                    (error == nil ? VPNWidgetStatus.connected : .disconnected).publish()
                 }
             }
         }
@@ -38,8 +41,11 @@ final class PacketTunnelProvider: NEPacketTunnelProvider, @unchecked Sendable {
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         lifecycle.async {
             let finish = {
-                self.finishStart(PrototypeError.startCancelled)
-                completionHandler()
+                self.lifecycle.async {
+                    self.finishStart(PrototypeError.startCancelled)
+                    VPNWidgetStatus.disconnected.publish()
+                    completionHandler()
+                }
             }
             if let clash = self.clash {
                 self.clash = nil

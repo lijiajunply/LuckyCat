@@ -16,11 +16,6 @@ struct ProfileDetailView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let message = vpn.message {
-                    Section {
-                        MessageLabel(text: message)
-                    }
-                }
                 if let profile {
                     Section("名称") {
                         TextField("配置名称", text: $draftName)
@@ -103,7 +98,7 @@ struct ProfileDetailView: View {
                             }
                             Button {
                                 guard let url = RemoteImport.url(from: draftURL) else {
-                                    vpn.message = "请输入有效的 HTTPS 配置链接。"
+                                    vpn.showToast("请输入有效的 HTTPS 配置链接。")
                                     return
                                 }
                                 Task {
@@ -204,6 +199,7 @@ struct ProfileDetailView: View {
                 Text("将从本机删除「\(profile?.name ?? "该配置")」及其节点凭据。")
             }
         }
+        .toast(vpn.toast)
     }
 
     private var trimmedName: String {

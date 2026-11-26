@@ -65,18 +65,22 @@ struct ContentView: View {
             NetworkPage(vpn: vpn)
                 .tabItem { Label("网络", systemImage: "waveform.path.ecg") }
                 .tag(Page.network)
-            SettingsPage(vpn: vpn)
+            SettingsPage(vpn: vpn, onShowProfile: { detailProfileID = $0 })
                 .tabItem { Label("设置", systemImage: "gearshape") }
                 .tag(Page.settings)
         }
+        .toast(vpn.toast, enabled: detailProfileID == nil && !showingInfo)
         .fileImporter(isPresented: $showingImporter, allowedContentTypes: [.yaml, .json, .plainText]) { result in
             switch result {
             case .success(let url):
                 vpn.importFile(url)
                 showingPreview = vpn.hasStagedImport
+                if !showingPreview, let error = vpn.importError {
+                    vpn.showToast(error)
+                }
             case .failure(let error):
                 if (error as NSError).code != NSUserCancelledError {
-                    vpn.message = "无法打开配置文件。"
+                    vpn.showToast("无法打开配置文件。")
                 }
             }
         }
@@ -137,9 +141,12 @@ struct ContentView: View {
         }
     }
 
-    /// Supports `clash://install-config?url=<subscription>` and
-    /// `luckyclash://install-config?url=<subscription>` like FlClash.
     private func handleOpenURL(_ url: URL) {
+        if url == VPNWidgetStatus.connectionURL {
+            page = .connection
+            return
+        }
+        // Subscription links use clash://install-config or luckyclash://install-config.
         guard ["clash", "luckyclash"].contains(url.scheme?.lowercased() ?? "") else { return }
         let target = URLComponents(url: url, resolvingAgainstBaseURL: false)?
             .queryItems?.first(where: { $0.name == "url" })?.value
@@ -150,6 +157,8 @@ struct ContentView: View {
         Task {
             if await vpn.importURL(target) {
                 showingPreview = true
+            } else if let error = vpn.importError {
+                vpn.showToast(error)
             }
         }
     }

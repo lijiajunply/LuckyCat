@@ -15,11 +15,6 @@ struct ProfilesView: View {
     var body: some View {
         NavigationStack {
             List {
-                if let message = vpn.message {
-                    Section {
-                        MessageLabel(text: message)
-                    }
-                }
                 if let profile {
                     if let groups = profile.clashGroups, !groups.isEmpty {
                         groupsSection(profile: profile, groups: groups)

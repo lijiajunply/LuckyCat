@@ -50,7 +50,19 @@ final class PrototypeVPN {
     private var latencyPendingURL: String?
     private(set) var liveGroupMembers: [String: [String]] = [:]
     private(set) var latencyTestedAt: [UUID: Date] = [:]
-    var message: String?
+    private(set) var toast: ToastMessage?
+    private var operationMessage: String?
+    var message: String? {
+        get { operationMessage }
+        set {
+            operationMessage = newValue
+            if let newValue { showToast(newValue) }
+        }
+    }
+
+    func showToast(_ text: String) {
+        toast = ToastMessage(text: text)
+    }
 
     private let latencyTester = ClashLatencyTester.shared
     private var manager: NETunnelProviderManager?
@@ -333,7 +345,7 @@ final class PrototypeVPN {
             await updateClash(profile, index: index, sourceURL: profile.sourceURL, replacement: document)
             return issue == nil
         } catch {
-            message = Self.describeImport(error)
+            operationMessage = Self.describeImport(error)
             issue = .configuration
             return false
         }
@@ -425,7 +437,9 @@ final class PrototypeVPN {
             record("配置已更新")
         } catch {
             ClashTunnelStore.remove(revision: revision)
-            message = Self.describeImport(error)
+            let failure = Self.describeImport(error)
+            operationMessage = failure
+            if replacement == nil { showToast(failure) }
             issue = .configuration
         }
     }
@@ -1029,7 +1043,9 @@ final class PrototypeVPN {
                 message = "无法读取本地配置列表。"
             }
         }
-        #if !targetEnvironment(simulator)
+        #if targetEnvironment(simulator)
+        VPNWidgetStatus.disconnected.publish()
+        #else
         guard !busy, !requestingConnection else { return }
         busy = true
         defer { busy = false }
@@ -1171,6 +1187,7 @@ final class PrototypeVPN {
         if current != previous {
             statusChangedAt = UUID()
             status = current
+            publishWidgetStatus()
         }
         if [.disconnected, .disconnecting, .invalid].contains(current) {
             stopRequest = nil
@@ -1354,8 +1371,21 @@ final class PrototypeVPN {
     private func adopt(_ manager: NETunnelProviderManager?) {
         self.manager = manager
         status = manager?.connection.status ?? .invalid
+        publishWidgetStatus()
         syncTrafficPolling()
         syncNetworkMonitoring()
+    }
+
+    private func publishWidgetStatus() {
+        let widgetStatus: VPNWidgetStatus
+        switch status {
+        case .invalid, .disconnected: widgetStatus = .disconnected
+        case .connecting, .reasserting: widgetStatus = .connecting
+        case .connected: widgetStatus = .connected
+        case .disconnecting: widgetStatus = .disconnecting
+        @unknown default: widgetStatus = .unknown
+        }
+        widgetStatus.publish()
     }
 
     /// Keeps the network page attached to the tunnel's core while it runs.

@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SubscriptionManagementView: View {
     let vpn: PrototypeVPN
-    @State private var selectedProfile: Profile?
+    let onShowDetail: (UUID) -> Void
     private var subscriptions: [Profile] { vpn.library.profiles.filter { $0.sourceURL != nil } }
 
     var body: some View {
@@ -12,7 +12,7 @@ struct SubscriptionManagementView: View {
                     Text("暂无订阅配置").foregroundStyle(.secondary)
                 }
                 ForEach(subscriptions) { profile in
-                    Button { selectedProfile = profile } label: {
+                    Button { onShowDetail(profile.id) } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(profile.name)
                             Text(profile.subscription?.lastUpdated.map { "更新于 \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "尚无更新时间")
@@ -23,14 +23,10 @@ struct SubscriptionManagementView: View {
                 Button("更新全部订阅", systemImage: "arrow.clockwise") {
                     Task { await vpn.updateAll() }
                 }.disabled(subscriptions.isEmpty || vpn.busy || vpn.isActive)
-                if let message = vpn.message { MessageLabel(text: message) }
             } footer: {
                 Text("打开 App 或回到前台时，会尝试更新已到期且开启自动更新的订阅。更新前请断开 VPN。")
             }
         }
         .navigationTitle("订阅管理")
-        .sheet(item: $selectedProfile) { profile in
-            ProfileDetailView(vpn: vpn, profileID: profile.id)
-        }
     }
 }

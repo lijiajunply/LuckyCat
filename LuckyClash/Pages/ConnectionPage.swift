@@ -22,11 +22,6 @@ struct ConnectionPage: View {
     var body: some View {
         NavigationStack {
             List {
-                if let message = vpn.message {
-                    Section {
-                        MessageLabel(text: message)
-                    }
-                }
                 Section {
                     if vpn.library.profiles.isEmpty {
                         Button("导入配置", systemImage: "document.badge.plus") {

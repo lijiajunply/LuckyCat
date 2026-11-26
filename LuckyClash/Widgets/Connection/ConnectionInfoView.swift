@@ -68,11 +68,6 @@ struct ConnectionInfoView: View {
                     }
                     overviewSection(profile)
                 }
-                if let message = vpn.message {
-                    Section {
-                        MessageLabel(text: message)
-                    }
-                }
             }
             .navigationTitle("连接信息")
             .navigationBarTitleDisplayMode(.inline)
@@ -82,6 +77,7 @@ struct ConnectionInfoView: View {
                 }
             }
         }
+        .toast(vpn.toast)
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
     }
