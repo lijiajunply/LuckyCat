@@ -18,7 +18,13 @@ struct SubscriptionManagementView: View {
                             Text(profile.subscription?.lastUpdated.map { "更新于 \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "尚无更新时间")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
-                    }.foregroundStyle(.primary)
+                    }
+                    .foregroundStyle(.primary)
+                    .contextMenu {
+                        ProfileShareLink(profile: profile) {
+                            Label("分享订阅链接", systemImage: "square.and.arrow.up")
+                        }
+                    }
                 }
                 Button {
                     Task { await vpn.updateAll() }

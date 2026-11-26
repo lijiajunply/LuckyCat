@@ -164,6 +164,13 @@ struct ProfileDetailView: View {
                     }
 
                     Section {
+                        ProfileShareLink(profile: profile) {
+                            Label(
+                                ProfileShare.actionTitle(for: profile),
+                                systemImage: "square.and.arrow.up"
+                            )
+                        }
+                        .accessibilityIdentifier("profile-detail-share")
                         NavigationLink("兼容提示") {
                             ProfileCompatibility(profile: profile)
                         }
@@ -171,6 +178,12 @@ struct ProfileDetailView: View {
                             showingDelete = true
                         }
                         .disabled(vpn.busy || vpn.isActive)
+                    } footer: {
+                        Text(
+                            profile.sourceURL != nil
+                                ? "分享将发送订阅链接，链接可能包含订阅令牌，请仅分享给信任的人。"
+                                : "分享将导出该配置的 YAML 文件，内容可能包含节点密码，请仅分享给信任的人。"
+                        )
                     }
                 } else {
                     ContentUnavailableView(

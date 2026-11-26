@@ -238,6 +238,9 @@ struct ConnectionPage: View {
             } label: {
                 Label("详情", systemImage: "info.circle")
             }
+            ProfileShareLink(profile: profile) {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
             Button(role: .destructive) {
                 onDelete(profile)
             } label: {

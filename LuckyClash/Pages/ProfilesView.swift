@@ -48,6 +48,11 @@ struct ProfilesView: View {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     latencyToolbarItem
                     if let profile {
+                        ProfileShareLink(profile: profile) {
+                            Image(systemName: "square.and.arrow.up")
+                                .accessibilityLabel(ProfileShare.actionTitle(for: profile))
+                        }
+                        .accessibilityIdentifier("share-profile-\(profile.name)")
                         Button {
                             onShowDetail(profile.id)
                         } label: {
