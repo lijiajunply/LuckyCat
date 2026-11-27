@@ -23,6 +23,7 @@ private struct ToastPresenter: ViewModifier {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var visibleMessage: ToastMessage?
+    @State private var bannerTextHeight: CGFloat?
 
     func body(content: Content) -> some View {
         content
@@ -70,21 +71,45 @@ private struct ToastPresenter: ViewModifier {
         }
     }
 
-    private func banner(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+    @ViewBuilder private func banner(_ text: String) -> some View {
+        if text.contains(where: \.isNewline) {
+            scrollableBanner(text)
+        } else {
+            ViewThatFits(in: .horizontal) {
+                bannerFrame(alignment: .center) {
+                    Text(text)
+                        .fixedSize()
+                }
+                scrollableBanner(text)
+            }
+        }
+    }
+
+    private func scrollableBanner(_ text: String) -> some View {
+        bannerFrame(alignment: .top) {
+            ScrollView {
+                Text(text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .onGeometryChange(for: CGFloat.self) { geometry in
+                        geometry.size.height
+                    } action: { height in
+                        bannerTextHeight = height
+                    }
+            }
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: min(bannerTextHeight ?? 32, 96))
+        }
+        .frame(maxWidth: 360)
+    }
+
+    private func bannerFrame<Content: View>(
+        alignment: VerticalAlignment, @ViewBuilder content: () -> Content
+    ) -> some View {
+        HStack(alignment: alignment, spacing: 12) {
             Image(systemName: "info.circle")
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
-            ViewThatFits(in: .vertical) {
-                Text(text)
-                    .fixedSize(horizontal: false, vertical: true)
-                ScrollView {
-                    Text(text)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: 160, alignment: .topLeading)
-            .layoutPriority(1)
+            content()
             Button {
                 visibleMessage = nil
             } label: {
@@ -99,7 +124,6 @@ private struct ToastPresenter: ViewModifier {
         }
         .font(.subheadline)
         .padding(12)
-        .frame(maxWidth: 480)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .shadow(color: .black.opacity(0.16), radius: 10, y: 3)
     }
@@ -112,6 +136,13 @@ private struct ToastPresenter: ViewModifier {
     NavigationStack {
         List {
             Button("更新订阅") { message = ToastMessage(text: "订阅已更新", isSuccess: true) }
+            Button("显示更新错误") {
+                message = ToastMessage(text: "「花云」更新失败（HTTP 400）")
+            }
+            Button("显示批量更新错误") {
+                let failures = (1...8).map { "订阅 \($0)：更新失败（HTTP 400），请检查链接。" }
+                message = ToastMessage(text: failures.joined(separator: "\n"))
+            }
         }
         .navigationTitle("订阅管理")
     }

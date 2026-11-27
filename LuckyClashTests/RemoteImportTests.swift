@@ -145,22 +145,61 @@ struct RemoteImportTests {
     }
 
     @Test func fetchRejectsHTTPStatus() async {
+        var requestCount = 0
         StubURLProtocol.handler = { request in
-            (
+            requestCount += 1
+            return (
                 HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
                 Data()
             )
         }
-        do {
-            _ = try await RemoteImport.fetch(
+        await #expect(throws: RemoteImport.Failure.status(404)) {
+            try await RemoteImport.fetch(
                 URL(string: "https://example.com/config.yaml")!, session: session()
             )
-            Issue.record("Expected a status failure")
-        } catch let failure as RemoteImport.Failure {
-            #expect(failure == .status(404))
-        } catch {
-            Issue.record("Unexpected error: \(error)")
         }
+        #expect(requestCount == 1)
+    }
+
+    @Test func streamingDownloadRetriesHTTP400WithCompatibilityUserAgent() async throws {
+        let url = URL(string: "https://example.com/config.yaml?token=example%2Bvalue")!
+        var requests: [URLRequest] = []
+        StubURLProtocol.handler = { request in
+            requests.append(request)
+            let acceptsClient = request.value(forHTTPHeaderField: "User-Agent") == "Clash.Meta"
+            return (
+                HTTPURLResponse(
+                    url: request.url!, statusCode: acceptsClient ? 200 : 400, httpVersion: nil,
+                    headerFields: acceptsClient ? ["Profile-Update-Interval": "6"] : nil
+                )!,
+                acceptsClient ? Data("proxies: []".utf8) : Data()
+            )
+        }
+
+        let response = try await RemoteImport.download(url, configuration: streamingConfiguration())
+        #expect(requests.map(\.url) == [url, url])
+        #expect(requests.map { $0.value(forHTTPHeaderField: "User-Agent") } == [
+            RemoteImport.userAgent, "Clash.Meta"
+        ])
+        #expect(response.data == Data("proxies: []".utf8))
+        #expect(response.header("profile-update-interval") == "6")
+    }
+
+    @Test func streamingDownloadStopsIfCompatibilityRequestAlsoReturnsHTTP400() async {
+        var requestCount = 0
+        StubURLProtocol.handler = { request in
+            requestCount += 1
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
+        }
+        await #expect(throws: RemoteImport.Failure.status(400)) {
+            try await RemoteImport.download(
+                URL(string: "https://example.com/config.yaml")!, configuration: streamingConfiguration()
+            )
+        }
+        #expect(requestCount == 2)
     }
 
     @Test func fetchRejectsDeclaredOversizeContent() async {

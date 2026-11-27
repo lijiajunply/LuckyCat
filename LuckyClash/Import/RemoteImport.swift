@@ -10,6 +10,7 @@ enum RemoteImport {
     /// Claiming a Meta-capable client returns the real node list, which the
     /// bundled mihomo core can run.
     nonisolated static let userAgent = "clash-verge/v2.4.2"
+    nonisolated private static let compatibilityUserAgent = "Clash.Meta"
 
     struct Response {
         let data: Data
@@ -31,6 +32,7 @@ enum RemoteImport {
             switch self {
             case .insecureScheme: "仅支持 HTTPS 配置链接。"
             case .tooLarge: "配置内容超过 8 MB 上限。"
+            case .status(400): "请求被拒绝（HTTP 400），请检查订阅链接。"
             case .status(let code): "服务器返回 HTTP \(code)。"
             case .network: "网络请求失败，请检查链接和网络后重试。"
             }
@@ -57,36 +59,39 @@ enum RemoteImport {
     }
 
     nonisolated static func download(_ url: URL, session: URLSession? = nil) async throws -> Response {
-        guard url.scheme?.lowercased() == "https", let host = url.host(), !host.isEmpty else {
-            throw Failure.insecureScheme
-        }
-        var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-
         if let session {
-            return try await download(request, with: session)
+            return try await download(url) { request in
+                try await download(request, with: session)
+            }
         }
-        return try await download(request, configuration: configuration)
+        return try await download(url, configuration: configuration)
     }
 
     nonisolated static func download(
         _ url: URL, configuration: URLSessionConfiguration
     ) async throws -> Response {
+        try await download(url) { request in
+            try await StreamDownload(limit: maximumBytes, originalURL: url, configuration: configuration)
+                .run(request)
+        }
+    }
+
+    nonisolated private static func download(
+        _ url: URL, send: (URLRequest) async throws -> Response
+    ) async throws -> Response {
         guard url.scheme?.lowercased() == "https", let host = url.host(), !host.isEmpty else {
             throw Failure.insecureScheme
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
         request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-        return try await download(request, configuration: configuration)
-    }
-
-    nonisolated private static func download(
-        _ request: URLRequest, configuration: URLSessionConfiguration
-    ) async throws -> Response {
-        guard let url = request.url else { throw Failure.network }
-        return try await StreamDownload(
-            limit: maximumBytes, originalURL: url, configuration: configuration
-        ).run(request)
+        do {
+            return try await send(request)
+        } catch Failure.status(400) {
+            // Some subscription servers only recognize a subset of Clash client names.
+            try Task.checkCancellation()
+            request.setValue(compatibilityUserAgent, forHTTPHeaderField: "User-Agent")
+            return try await send(request)
+        }
     }
 
     nonisolated private static func download(
@@ -95,12 +100,12 @@ enum RemoteImport {
         do {
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else { throw Failure.network }
-            guard (200...299).contains(http.statusCode) else { throw Failure.status(http.statusCode) }
-            if http.expectedContentLength > Int64(maximumBytes) { throw Failure.tooLarge }
-            if data.count > maximumBytes { throw Failure.tooLarge }
             if let finalURL = http.url, finalURL.scheme?.lowercased() != "https" {
                 throw Failure.insecureScheme
             }
+            guard (200...299).contains(http.statusCode) else { throw Failure.status(http.statusCode) }
+            if http.expectedContentLength > Int64(maximumBytes) { throw Failure.tooLarge }
+            if data.count > maximumBytes { throw Failure.tooLarge }
             return Response(
                 data: data, finalURL: http.url ?? request.url!, headers: headers(of: http)
             )
@@ -175,19 +180,24 @@ private final class StreamDownload: NSObject, URLSessionDataDelegate, @unchecked
             completionHandler(.cancel)
             return
         }
-        lock.lock()
-        self.response = http
-        lock.unlock()
-        if http.expectedContentLength > Int64(limit) {
-            record(.tooLarge)
-            completionHandler(.cancel)
-            return
-        }
         if let url = http.url, url.scheme?.lowercased() != "https" {
             record(.insecureScheme)
             completionHandler(.cancel)
             return
         }
+        if !(200...299).contains(http.statusCode) {
+            record(.status(http.statusCode))
+            completionHandler(.cancel)
+            return
+        }
+        if http.expectedContentLength > Int64(limit) {
+            record(.tooLarge)
+            completionHandler(.cancel)
+            return
+        }
+        lock.lock()
+        self.response = http
+        lock.unlock()
         completionHandler(.allow)
     }
 
@@ -225,6 +235,7 @@ private final class StreamDownload: NSObject, URLSessionDataDelegate, @unchecked
     func urlSession(
         _ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?
     ) {
+        if error != nil { record(.network) }
         finish()
     }
 
@@ -254,13 +265,11 @@ private final class StreamDownload: NSObject, URLSessionDataDelegate, @unchecked
 
         if let failure {
             continuation?.resume(throwing: failure)
-        } else if let response, (200...299).contains(response.statusCode) {
+        } else if let response {
             continuation?.resume(returning: RemoteImport.Response(
                 data: body, finalURL: response.url ?? originalURL,
                 headers: RemoteImport.headers(of: response)
             ))
-        } else if let response {
-            continuation?.resume(throwing: RemoteImport.Failure.status(response.statusCode))
         } else {
             continuation?.resume(throwing: RemoteImport.Failure.network)
         }

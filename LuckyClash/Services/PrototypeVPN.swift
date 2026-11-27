@@ -450,7 +450,13 @@ final class PrototypeVPN {
             ClashTunnelStore.remove(revision: revision)
             let failure = Self.describeImport(error)
             operationMessage = failure
-            if replacement == nil { showToast(failure) }
+            if replacement == nil {
+                if let remoteFailure = error as? RemoteImport.Failure, case .status(let code) = remoteFailure {
+                    showToast("「\(profile.name)」更新失败（HTTP \(code)）")
+                } else {
+                    showToast("「\(profile.name)」更新失败。\(failure)")
+                }
+            }
             issue = .configuration
         }
     }
