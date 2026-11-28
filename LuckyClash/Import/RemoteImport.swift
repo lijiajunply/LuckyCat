@@ -11,6 +11,21 @@ enum RemoteImport {
     /// bundled mihomo core can run.
     nonisolated static let userAgent = "clash-verge/v2.4.2"
     nonisolated private static let compatibilityUserAgent = "Clash.Meta"
+    nonisolated static let userAgentModeKey = "subscriptionUserAgentMode"
+    nonisolated static let customUserAgentKey = "subscriptionCustomUserAgent"
+    nonisolated static let verifyCertificateKey = "subscriptionVerifyCertificate"
+
+    nonisolated static var selectedUserAgent: String {
+        let defaults = UserDefaults.standard
+        switch defaults.string(forKey: userAgentModeKey) {
+        case "meta": return compatibilityUserAgent
+        case "custom":
+            let custom = (defaults.string(forKey: customUserAgentKey) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return custom.isEmpty || custom.rangeOfCharacter(from: .controlCharacters) != nil ? userAgent : custom
+        default: return userAgent
+        }
+    }
 
     struct Response {
         let data: Data
@@ -83,11 +98,14 @@ enum RemoteImport {
             throw Failure.insecureScheme
         }
         var request = URLRequest(url: url, timeoutInterval: timeout)
-        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+        let selected = selectedUserAgent
+        request.setValue(selected, forHTTPHeaderField: "User-Agent")
         do {
             return try await send(request)
         } catch Failure.status(400) {
-            // Some subscription servers only recognize a subset of Clash client names.
+            // Preserve the compatibility retry for the default only.
+            guard selected == userAgent,
+                  UserDefaults.standard.string(forKey: userAgentModeKey) != "custom" else { throw Failure.status(400) }
             try Task.checkCancellation()
             request.setValue(compatibilityUserAgent, forHTTPHeaderField: "User-Agent")
             return try await send(request)
@@ -147,6 +165,7 @@ private final class StreamDownload: NSObject, URLSessionDataDelegate, @unchecked
     private var continuation: CheckedContinuation<RemoteImport.Response, Error>?
     private var session: URLSession?
     private var finished = false
+    private let verifyCertificate = UserDefaults.standard.object(forKey: RemoteImport.verifyCertificateKey) as? Bool ?? true
 
     init(limit: Int, originalURL: URL, configuration: URLSessionConfiguration) {
         self.limit = limit
@@ -168,6 +187,18 @@ private final class StreamDownload: NSObject, URLSessionDataDelegate, @unchecked
             lock.unlock()
             session.dataTask(with: request).resume()
         }
+    }
+
+    func urlSession(
+        _ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
+        completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void
+    ) {
+        guard !verifyCertificate, challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
+              let trust = challenge.protectionSpace.serverTrust else {
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+        completionHandler(.useCredential, URLCredential(trust: trust))
     }
 
     func urlSession(

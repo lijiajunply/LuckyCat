@@ -6,6 +6,7 @@ import SwiftUI
 struct NetworkPage: View {
     enum Feed: String, CaseIterable, Identifiable {
         case connections
+        case requests
         case logs
 
         var id: String { rawValue }
@@ -13,6 +14,7 @@ struct NetworkPage: View {
         var title: String {
             switch self {
             case .connections: "连接"
+            case .requests: "请求"
             case .logs: "日志"
             }
         }
@@ -53,8 +55,20 @@ struct NetworkPage: View {
     @State private var feed: Feed
     @State private var search = ""
     @State private var level: LevelFilter = .all
+    @State private var logTag = ""
+    @State private var pausedLogs: [ClashLogEntry]?
+    @State private var changingLogLevel = false
     @State private var selectedConnection: ClashConnection?
     @State private var showingClear = false
+    @State private var showingClearRequests = false
+    @State private var pausedRequests: [NetworkStore.ClosedRequest]?
+    @State private var requestSort: RequestSort = .time
+
+    enum RequestSort: String, CaseIterable {
+        case time = "时间"
+        case traffic = "流量"
+        case rate = "平均速率"
+    }
 
     init(vpn: PrototypeVPN, initialFeed: Feed = .connections) {
         self.vpn = vpn
@@ -67,14 +81,15 @@ struct NetworkPage: View {
         NavigationStack {
             List {
                 feedSection
-                if feed == .connections {
-                    connectionsContent
-                } else {
-                    logsContent
+                switch feed {
+                case .connections: connectionsContent
+                case .requests: requestsContent
+                case .logs: logsContent
                 }
                 statusSection
             }
             .navigationTitle("网络日志")
+            .toast(vpn.toast)
             .searchable(
                 text: $search,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -82,13 +97,23 @@ struct NetworkPage: View {
             )
             .toolbar { toolbarContent }
             .sheet(item: $selectedConnection) { connection in
-                ConnectionDetailView(connection: connection)
+                ConnectionDetailView(connection: connection, vpn: vpn)
             }
             .alert("清除日志？", isPresented: $showingClear) {
                 Button("取消", role: .cancel) {}
-                Button("清除", role: .destructive) { store.clearLogs() }
+                Button("清除", role: .destructive) {
+                    store.clearLogs()
+                    if pausedLogs != nil { pausedLogs = [] }
+                }
             } message: {
                 Text("将清空当前显示的日志，不影响 VPN 连接。")
+            }
+            .alert("清除请求历史？", isPresented: $showingClearRequests) {
+                Button("取消", role: .cancel) {}
+                Button("清除", role: .destructive) {
+                    store.clearRequests()
+                    if pausedRequests != nil { pausedRequests = [] }
+                }
             }
             .alert("内核操作失败", isPresented: errorBinding) {
                 Button("好") { store.dismissError() }
@@ -106,7 +131,7 @@ struct NetworkPage: View {
                 Circle()
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
-                Text(statusTitle)
+                Text(LocalizedStringKey(statusTitle))
                 Spacer()
                 if let updated = store.lastUpdated, store.status == .streaming {
                     Text(updated, format: .dateTime.hour().minute().second())
@@ -119,7 +144,7 @@ struct NetworkPage: View {
                 LabeledContent("实时速率", value: "↓ \(rate(store.downloadRate))/s · ↑ \(rate(store.uploadRate))/s")
             }
         } footer: {
-            Text(statusHint)
+            Text(LocalizedStringKey(statusHint))
         }
     }
 
@@ -158,7 +183,7 @@ struct NetworkPage: View {
         Section {
             Picker("视图", selection: $feed) {
                 ForEach(Feed.allCases) { item in
-                    Text(item.title).tag(item)
+                    Text(LocalizedStringKey(item.title)).tag(item)
                 }
             }
             .pickerStyle(.segmented)
@@ -285,12 +310,68 @@ struct NetworkPage: View {
         return parts.joined(separator: " · ")
     }
 
+    // MARK: - Closed requests
+
+    private var filteredRequests: [NetworkStore.ClosedRequest] {
+        let query = search.trimmingCharacters(in: .whitespacesAndNewlines)
+        let entries = (pausedRequests ?? store.requests).filter {
+            query.isEmpty || $0.connection.destinationName.localizedStandardContains(query)
+                || $0.connection.ruleSummary.localizedStandardContains(query)
+                || $0.connection.chains.joined(separator: " ").localizedStandardContains(query)
+        }
+        switch requestSort {
+        case .time: return entries.sorted { $0.closedAt > $1.closedAt }
+        case .traffic:
+            return entries.sorted {
+                Double($0.connection.download) + Double($0.connection.upload)
+                    > Double($1.connection.download) + Double($1.connection.upload)
+            }
+        case .rate: return entries.sorted { $0.averageRate > $1.averageRate }
+        }
+    }
+
+    private var requestsContent: some View {
+        Section("已关闭请求 \(filteredRequests.count)") {
+            if filteredRequests.isEmpty {
+                Text("暂无请求历史").foregroundStyle(.secondary)
+            }
+            ForEach(filteredRequests) { request in
+                Button { selectedConnection = request.connection } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(request.connection.destinationWithPort).lineLimit(1)
+                            Spacer()
+                            Text(request.closedAt, format: .dateTime.hour().minute().second())
+                                .font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                        }
+                        Text("\(connectionSubtitle(request.connection)) · ↓ \(bytes(request.connection.download)) · ↑ \(bytes(request.connection.upload))")
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var requestsExport: String {
+        filteredRequests.map { request in
+            let connection = request.connection
+            return [
+                request.closedAt.formatted(.iso8601),
+                connection.destinationWithPort,
+                connection.ruleSummary,
+                connection.chains.joined(separator: " → "),
+                "↓ \(bytes(connection.download)) ↑ \(bytes(connection.upload))"
+            ].joined(separator: "  ")
+        }.joined(separator: "\n")
+    }
+
     // MARK: - Logs
 
     private var filteredLogs: [ClashLogEntry] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return store.logs.filter { entry in
-            guard level.matches(entry.level) else { return false }
+        return (pausedLogs ?? store.logs).filter { entry in
+            guard level.matches(entry.level), logTag.isEmpty || entry.tag == logTag else { return false }
             guard !query.isEmpty else { return true }
             return entry.payload.lowercased().contains(query)
                 || (entry.tag?.lowercased().contains(query) ?? false)
@@ -316,7 +397,7 @@ struct NetworkPage: View {
                 HStack {
                     Text("日志 \(logs.count)")
                     Spacer()
-                    Text("最新在上")
+                    Text(pausedLogs == nil ? "最新在上" : "已暂停")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -379,12 +460,55 @@ struct NetworkPage: View {
                 .accessibilityLabel("关闭全部连接")
                 .disabled(store.connections.isEmpty || store.status != .streaming)
             }
+        case .requests:
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("排序", selection: $requestSort) {
+                        ForEach(RequestSort.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }
+                    Button(pausedRequests == nil ? "暂停刷新" : "恢复刷新") {
+                        if pausedRequests == nil { pausedRequests = store.requests }
+                        else { pausedRequests = nil }
+                    }
+                    ShareLink(item: requestsExport) {
+                        Label("导出请求", systemImage: "square.and.arrow.up")
+                    }.disabled(filteredRequests.isEmpty)
+                    Button("清除请求", systemImage: "trash", role: .destructive) {
+                        showingClearRequests = true
+                    }.disabled(store.requests.isEmpty && (pausedRequests?.isEmpty ?? true))
+                } label: {
+                    Image(systemName: pausedRequests == nil ? "ellipsis.circle" : "pause.circle")
+                }.accessibilityLabel("请求历史操作")
+            }
         case .logs:
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
+                    Menu("内核日志级别") {
+                        ForEach(ClashLogEntry.Level.allCases, id: \.self) { item in
+                            Button {
+                                setCoreLogLevel(item)
+                            } label: {
+                                if vpn.library.overrides?.logLevel == item.rawValue {
+                                    Label(item.title, systemImage: "checkmark")
+                                } else {
+                                    Text(item.title)
+                                }
+                            }
+                        }
+                    }.disabled(changingLogLevel || vpn.busy || vpn.switchingProfile)
+                    Button(pausedLogs == nil ? "暂停刷新" : "恢复刷新") {
+                        if pausedLogs == nil { pausedLogs = store.logs }
+                        else { pausedLogs = nil }
+                    }
+                    Picker("标签", selection: $logTag) {
+                        Text("全部标签").tag("")
+                        ForEach(Array(Set((pausedLogs ?? store.logs).compactMap(\.tag))).sorted(), id: \.self) { tag in
+                            Text(tag).tag(tag)
+                        }
+                    }
                     Picker("级别", selection: $level) {
                         ForEach(LevelFilter.allCases) { item in
-                            Text(item.title).tag(item)
+                            Text(LocalizedStringKey(item.title)).tag(item)
                         }
                     }
                     ShareLink(item: exportText) {
@@ -405,6 +529,20 @@ struct NetworkPage: View {
         }
     }
 
+    private func setCoreLogLevel(_ level: ClashLogEntry.Level) {
+        changingLogLevel = true
+        Task {
+            defer { changingLogLevel = false }
+            var overrides = vpn.library.overrides ?? .empty
+            overrides.logLevel = level.rawValue
+            do {
+                try await vpn.saveOverrides(overrides, profileID: nil)
+            } catch {
+                vpn.showToast(error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Footer
 
     private var privacySection: some View {
@@ -418,7 +556,7 @@ struct NetworkPage: View {
     // MARK: - Formatting
 
     private var searchPrompt: String {
-        feed == .connections ? "搜索域名、规则或节点" : "搜索日志"
+        feed == .logs ? "搜索日志" : "搜索域名、规则或节点"
     }
 
     private var errorBinding: Binding<Bool> {

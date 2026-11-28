@@ -3,6 +3,25 @@ import Testing
 @testable import LuckyClash
 
 struct ClashLiveParsingTests {
+    @Test func parsesConnectionLifecycleEvents() throws {
+        let json = """
+        {"reset":true,"events":[
+          {"type":"new","id":"a","connection":{"id":"a","metadata":{"host":"example.com"},"upload":1}},
+          {"type":"update","id":"a","upload":42,"download":100},
+          {"type":"closed","id":"a","closedAt":"2026-11-27T08:30:00Z"},
+          {"type":"unknown","id":"b"}
+        ]}
+        """
+        let batch = try #require(ClashLiveParsing.connectionEvents(from: json))
+        #expect(batch.reset)
+        #expect(batch.events.count == 3)
+        #expect(batch.events[0].connection?.metadata.host == "example.com")
+        #expect(batch.events[1].upload == 42)
+        #expect(batch.events[1].download == 100)
+        #expect(batch.events[2].closedAt != nil)
+        #expect(batch.events[2].connection == nil)
+    }
+
     @Test func parsesConnectionSnapshot() throws {
         let json = """
         {"downloadTotal":1234,"uploadTotal":567,"memory":42,"connections":[{"id":"abc",\

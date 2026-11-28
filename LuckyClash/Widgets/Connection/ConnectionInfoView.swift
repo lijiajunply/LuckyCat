@@ -86,23 +86,19 @@ struct ConnectionInfoView: View {
 
     private var statusSection: some View {
         Section {
-            LabeledContent("VPN", value: VPNStatusText.status(vpn))
+            LabeledContent("VPN") { Text(LocalizedStringKey(VPNStatusText.status(vpn))) }
             if vpn.isActive {
-                LabeledContent("扩展", value: VPNStatusText.extensionStatus(vpn))
+                LabeledContent("扩展") { Text(LocalizedStringKey(VPNStatusText.extensionStatus(vpn))) }
             }
-            LabeledContent("分流模式", value: vpn.library.trafficMode.title)
-            if vpn.isActive, let traffic = vpn.traffic {
-                LabeledContent("接收", value: VPNStatusText.bytes(traffic.received))
-                LabeledContent("发送", value: VPNStatusText.bytes(traffic.sent))
-                LabeledContent(
-                    "更新",
-                    value: traffic.updatedAt.formatted(date: .omitted, time: .standard)
-                )
+            LabeledContent("分流模式") { Text(LocalizedStringKey(vpn.library.trafficMode.title)) }
+            if vpn.isActive, vpn.network.lastUpdated != nil {
+                LabeledContent("接收", value: VPNStatusText.bytes(vpn.network.downloadTotal))
+                LabeledContent("发送", value: VPNStatusText.bytes(vpn.network.uploadTotal))
             }
         } header: {
             Text("运行状态")
         } footer: {
-            Text("流量由扩展每 5 秒聚合上报，仅显示在本机。")
+            Text("流量由内核实时统计，仅显示在本机。")
         }
     }
 

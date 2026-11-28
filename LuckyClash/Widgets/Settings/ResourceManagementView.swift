@@ -4,6 +4,9 @@ struct ResourceManagementView: View {
     let vpn: PrototypeVPN
     @AppStorage("closeConnectionsOnNodeSwitch") private var closeConnectionsOnNodeSwitch = true
     @AppStorage("latencyTestURL") private var latencyTestURL = ClashLatencyTester.defaultTestURL
+    @AppStorage(ClashGeodata.geoIPSourceKey) private var geoIPSource = ""
+    @AppStorage(ClashGeodata.geoSiteSourceKey) private var geoSiteSource = ""
+    @AppStorage(ClashGeodata.updateIntervalKey) private var updateInterval = 0
     @State private var resources: [ClashGeodata.Status] = []
     @State private var updating = false
 
@@ -28,6 +31,16 @@ struct ResourceManagementView: View {
             }
 
             Section {
+                Picker("自动更新", selection: $updateInterval) {
+                    Text("仅手动").tag(0)
+                    Text("每天").tag(1)
+                    Text("每周").tag(7)
+                    Text("每月").tag(30)
+                }
+                TextField("自定义 GeoIP HTTPS 地址", text: $geoIPSource)
+                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
+                TextField("自定义 GeoSite HTTPS 地址", text: $geoSiteSource)
+                    .keyboardType(.URL).textInputAutocapitalization(.never).autocorrectionDisabled()
                 ForEach(resources) { resource in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(resource.name)
@@ -56,7 +69,7 @@ struct ResourceManagementView: View {
                 }
                 .disabled(updating || vpn.busy || vpn.isActive)
             } footer: {
-                Text("使用当前配置指定的下载地址；未指定时使用默认地址。更新前请断开 VPN。每个文件单独更新；失败时该文件保留旧版本。")
+                Text("自定义地址优先于配置中的地址。自动更新在连接前检查，更新失败时保留旧文件。")
             }
         }
         .navigationTitle("资源管理")

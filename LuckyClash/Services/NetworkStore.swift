@@ -21,6 +21,28 @@ final class NetworkStore {
     private(set) var uploadTotal: UInt64 = 0
     private(set) var downloadRate: Int64 = 0
     private(set) var uploadRate: Int64 = 0
+    struct RateSample: Identifiable {
+        let id = UUID()
+        let date: Date
+        let download: Int64
+        let upload: Int64
+    }
+
+    private(set) var rateHistory: [RateSample] = []
+    struct ClosedRequest: Identifiable {
+        let connection: ClashConnection
+        let closedAt: Date
+        var id: String { connection.id }
+        var averageRate: Double {
+            let duration = closedAt.timeIntervalSince(connection.start ?? closedAt)
+            guard duration > 0 else { return 0 }
+            return (Double(connection.upload) + Double(connection.download)) / duration
+        }
+    }
+
+    private(set) var requests: [ClosedRequest] = []
+    private var eventConnections: [String: ClashConnection] = [:]
+    private(set) var memoryFootprint: UInt64?
     private(set) var lastUpdated: Date?
     private(set) var errorMessage: String?
     private(set) var isRunning = false
@@ -40,6 +62,15 @@ final class NetworkStore {
             onTraffic: { [weak self] rates in
                 Task { @MainActor [weak self] in self?.apply(rates) }
             },
+            onMemory: { [weak self] bytes in
+                Task { @MainActor [weak self] in
+                    guard let self, self.isRunning else { return }
+                    self.memoryFootprint = bytes
+                }
+            },
+            onEvents: { [weak self] events in
+                Task { @MainActor [weak self] in self?.apply(events) }
+            },
             onDisconnect: { [weak self] message in
                 Task { @MainActor [weak self] in self?.handleDisconnect(message) }
             }
@@ -54,6 +85,12 @@ final class NetworkStore {
     func start() {
         guard !isRunning else { return }
         isRunning = true
+        rateHistory = []
+        eventConnections = [:]
+        memoryFootprint = nil
+        downloadTotal = 0
+        uploadTotal = 0
+        lastUpdated = nil
         supervisor = Task { [weak self] in
             await self?.supervise()
         }
@@ -64,6 +101,9 @@ final class NetworkStore {
         isRunning = false
         supervisor?.cancel()
         supervisor = nil
+        memoryFootprint = nil
+        downloadRate = 0
+        uploadRate = 0
         if status == .streaming || status == .waiting {
             status = .idle
         }
@@ -121,6 +161,10 @@ final class NetworkStore {
         }
     }
 
+    func clearRequests() {
+        requests.removeAll()
+    }
+
     func clearLogs() {
         logs.removeAll()
     }
@@ -140,6 +184,7 @@ final class NetworkStore {
     }
 
     private func apply(_ snapshot: ClashConnectionsSnapshot) {
+        guard isRunning else { return }
         connections = snapshot.connections
         downloadTotal = snapshot.downloadTotal
         uploadTotal = snapshot.uploadTotal
@@ -147,7 +192,34 @@ final class NetworkStore {
         if isRunning, status != .streaming { status = .streaming }
     }
 
+    private func apply(_ batch: ClashConnectionEventBatch) {
+        guard isRunning else { return }
+        if batch.reset { eventConnections.removeAll() }
+        for event in batch.events {
+            switch event.type {
+            case "new":
+                if let connection = event.connection { eventConnections[event.id] = connection }
+            case "update":
+                guard var connection = eventConnections[event.id] else { continue }
+                if let upload = event.upload { connection.upload = upload }
+                if let download = event.download { connection.download = download }
+                eventConnections[event.id] = connection
+            case "closed":
+                let previous = eventConnections.removeValue(forKey: event.id)
+                guard let connection = event.connection ?? previous else { continue }
+                requests.removeAll { $0.id == event.id }
+                requests.append(ClosedRequest(connection: connection, closedAt: event.closedAt ?? .now))
+                if requests.count > 2000 { requests.removeFirst(requests.count - 2000) }
+            default:
+                break
+            }
+        }
+    }
+
     private func apply(_ rates: ClashTrafficRates) {
+        guard isRunning else { return }
+        rateHistory.append(RateSample(date: .now, download: max(0, rates.download), upload: max(0, rates.upload)))
+        if rateHistory.count > 60 { rateHistory.removeFirst(rateHistory.count - 60) }
         uploadRate = rates.upload
         downloadRate = rates.download
         if isRunning, status != .streaming { status = .streaming }

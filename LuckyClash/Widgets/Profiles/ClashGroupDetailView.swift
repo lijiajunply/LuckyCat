@@ -11,85 +11,32 @@ struct ClashGroupDetailView: View {
 
     var body: some View {
         List {
-            Section {
-                LabeledContent("类型", value: group.type)
-                LabeledContent("成员", value: "\(vpn.members(for: group).count)")
-                if profile?.clashGroup == group.name {
-                    LabeledContent("状态", value: "当前使用")
-                }
-            }
-            Section {
-                if vpn.members(for: group).isEmpty {
-                    Text("该策略组暂无成员。").foregroundStyle(.secondary)
-                } else {
-                    ForEach(vpn.members(for: group), id: \.self) { member in
-                        memberRow(member)
+            if let profile {
+                Section {
+                    LabeledContent("类型", value: group.type)
+                    LabeledContent("成员", value: "\(vpn.members(for: group, profileID: profile.id).count)")
+                    let chain = vpn.strategyChain(from: group.name, profile: profile)
+                    if chain.count > 1 {
+                        LabeledContent("当前策略", value: chain.joined(separator: " → "))
+                    }
+                    if group.canPin, let fixed = vpn.fixedMember(in: group.name, profile: profile) {
+                        Button("已固定 \(fixed)，恢复自动选择", systemImage: "pin.slash") {
+                            vpn.unfixGroup(profileID: profile.id, group: group)
+                        }
+                        .disabled(!vpn.canSwitchNodes(for: profile.id))
                     }
                 }
-            } header: {
-                Text("成员")
-            } footer: {
-                if !group.isSelectable {
-                    Text("该策略组由内核按延迟自动选择节点，不能手动切换。")
-                } else if vpn.isActive && vpn.canSwitchNodes(for: profileID) {
-                    Text("切换后是否关闭已有连接可在设置中调整。")
+                Section("成员") {
+                    if vpn.members(for: group, profileID: profile.id).isEmpty {
+                        Text("该策略组暂无成员。").foregroundStyle(.secondary)
+                    }
+                    ForEach(vpn.members(for: group, profileID: profile.id), id: \.self) { member in
+                        StrategyMemberRow(vpn: vpn, profile: profile, group: group, name: member)
+                    }
                 }
             }
         }
         .navigationTitle(group.name)
-    }
-
-    @ViewBuilder private func memberRow(_ member: String) -> some View {
-        if let profile, let node = profile.nodes.first(where: { $0.name == member }) {
-            if group.isSelectable {
-                Button {
-                    guard vpn.canSwitchNodes(for: profile.id) else { return }
-                    vpn.select(profileID: profile.id, nodeID: node.id, group: group.name)
-                } label: {
-                    memberLabel(member, node: node, profile: profile)
-                }
-                .buttonStyle(.plain)
-            } else {
-                memberLabel(member, node: node, profile: profile)
-            }
-        } else {
-            Button {
-                vpn.selectMember(profileID: profileID, group: group, member: member)
-            } label: {
-                HStack {
-                    Text(member).foregroundStyle(.primary)
-                    Spacer()
-                    if profile?.clashGroup == group.name && profile?.clashSelectedMember == member {
-                        Image(systemName: "checkmark").foregroundStyle(.tint)
-                    }
-                }.contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .disabled(!group.isSelectable || !vpn.canSwitchNodes(for: profileID))
-        }
-    }
-
-    private func memberLabel(
-        _ member: String, node: Profile.Node, profile: Profile
-    ) -> some View {
-        HStack(spacing: 10) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(member)
-                    .foregroundStyle(.primary)
-                Text(node.type ?? "node")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            LatencyBadge(state: vpn.latencyState(for: member, profileID: profile.id, testURL: PrototypeVPN.normalizedTestURL(group.testURL)))
-            if profile.clashSelectedMember == nil, profile.selectedNodeID == node.id, profile.clashGroup == group.name {
-                Image(systemName: "checkmark")
-                    .foregroundStyle(.tint)
-                    .accessibilityLabel("当前选择")
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .contentShape(Rectangle())
     }
 }
 

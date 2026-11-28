@@ -9,8 +9,10 @@ struct ClashImportGroup: Codable, Equatable {
     /// it over the built-in fallback because it is reachable through the
     /// profile's own network conditions.
     var testURL: String? = nil
+    var usesProviders: Bool? = nil
 
     nonisolated var isSelectable: Bool { type.caseInsensitiveCompare("select") == .orderedSame }
+    nonisolated var canPin: Bool { ["url-test", "fallback"].contains(type.lowercased()) }
 }
 
 /// Turns anything a FlClash-style subscription URL can return into a single
@@ -318,7 +320,8 @@ enum ClashImport {
         let testURL = ((raw["url"] as? String) ?? (raw["test-url"] as? String))
             .flatMap { $0.isEmpty ? nil : $0 }
         return ClashImportGroup(
-            name: name, type: type, members: members, testURL: testURL
+            name: name, type: type, members: members, testURL: testURL,
+            usesProviders: !(raw["use"] as? [String] ?? []).isEmpty || raw["include-all-providers"] as? Bool == true || raw["include-all"] as? Bool == true
         )
     }
 

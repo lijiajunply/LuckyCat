@@ -35,7 +35,7 @@ struct SubscriptionManagementView: View {
                         Label("更新全部订阅", systemImage: "arrow.clockwise")
                     }
                 }
-                .disabled(subscriptions.isEmpty || vpn.busy || vpn.isActive)
+                .disabled(subscriptions.isEmpty || vpn.busy || vpn.switchingProfile)
             } footer: {
                 Text("打开 App 或回到前台时，会尝试更新已到期且开启自动更新的订阅。更新前请断开 VPN。")
             }

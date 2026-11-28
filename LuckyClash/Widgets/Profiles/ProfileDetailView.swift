@@ -9,6 +9,8 @@ struct ProfileDetailView: View {
     @State private var draftURL = ""
     @State private var showsURLError = false
     @State private var showingDelete = false
+    @State private var refreshingCustom = false
+    @State private var customRefreshError: String?
 
     private var profile: Profile? {
         vpn.library.profiles.first { $0.id == profileID }
@@ -26,17 +28,46 @@ struct ProfileDetailView: View {
                             .onSubmit { saveName(profile) }
                         if trimmedName != profile.name {
                             Button("保存名称") { saveName(profile) }
-                                .disabled(trimmedName.isEmpty || vpn.busy || vpn.isActive)
+                                .disabled(trimmedName.isEmpty || vpn.busy || vpn.switchingProfile)
                         }
                     }
 
                     if profile.resolvedEngine == .clash {
                         Section("配置内容") {
+                            if let recipe = profile.customRecipe {
+                                NavigationLink("编辑自定义配置") {
+                                    CustomProfileBuilderView(vpn: vpn, profileID: profile.id)
+                                }
+                                .disabled(!vpn.canUpdateProfile(profile.id))
+                                if recipe.sourcesChanged(in: vpn.library.profiles) {
+                                    Text("来源已更新或不可用，请重新生成配置。")
+                                        .font(.footnote).foregroundStyle(.orange)
+                                }
+                                Button {
+                                    refreshingCustom = true
+                                    customRefreshError = nil
+                                    Task {
+                                        do { try await vpn.refreshCustomProfile(profile.id) }
+                                        catch { customRefreshError = error.localizedDescription }
+                                        refreshingCustom = false
+                                    }
+                                } label: {
+                                    if refreshingCustom { ProgressView() }
+                                    else { Label("从来源重新生成", systemImage: "arrow.clockwise") }
+                                }
+                                .disabled(refreshingCustom || !vpn.canUpdateProfile(profile.id))
+                                if let customRefreshError {
+                                    Text(customRefreshError).font(.footnote).foregroundStyle(.red)
+                                }
+                            }
                             NavigationLink("查看和编辑 YAML") {
                                 ConfigurationEditorView(vpn: vpn, profileID: profile.id)
                             }
-                            .disabled(vpn.busy || vpn.isActive)
-                            Text("编辑前请断开 VPN。订阅更新会覆盖本地修改。")
+                            .disabled(!vpn.canUpdateProfile(profile.id))
+                            NavigationLink("配置覆写") {
+                                ConfigurationOverridesView(vpn: vpn, profileID: profile.id)
+                            }
+                            Text("订阅更新会覆盖原文中的本地修改，覆写会保留。")
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
@@ -61,7 +92,7 @@ struct ProfileDetailView: View {
                                 .autocorrectionDisabled()
                                 .lineLimit(2...5)
                                 .accessibilityIdentifier("profile-detail-url")
-                                .disabled(vpn.busy || vpn.isActive)
+                                .disabled(!vpn.canUpdateProfile(profile.id))
                                 .onChange(of: draftURL) {
                                     if RemoteImport.url(from: draftURL) != nil { showsURLError = false }
                                 }
@@ -83,7 +114,7 @@ struct ProfileDetailView: View {
                                 }
                             }
                             Toggle("自动更新", isOn: autoUpdateBinding(profile.id))
-                                .disabled(vpn.busy || vpn.isActive)
+                                .disabled(vpn.busy || vpn.switchingProfile)
                             Picker("自动更新间隔", selection: Binding(
                                 get: { profile.updateIntervalOverrideHours ?? 0 },
                                 set: { vpn.setUpdateInterval($0 == 0 ? nil : $0, for: profile.id) }
@@ -94,7 +125,7 @@ struct ProfileDetailView: View {
                                 Text("24 小时").tag(24)
                                 Text("3 天").tag(72)
                                 Text("7 天").tag(168)
-                            }.disabled(vpn.busy || vpn.isActive || !profile.autoUpdateEnabled)
+                            }.disabled(vpn.busy || vpn.switchingProfile || !profile.autoUpdateEnabled)
                             if profile.autoUpdateEnabled {
                                 if let next = profile.nextAutoUpdateDate {
                                     LabeledContent(
@@ -126,7 +157,7 @@ struct ProfileDetailView: View {
                                     Label("更新订阅", systemImage: "arrow.clockwise")
                                 }
                             }
-                            .disabled(vpn.busy || vpn.isActive)
+                            .disabled(!vpn.canUpdateProfile(profile.id))
                         }
                     }
 
@@ -177,7 +208,7 @@ struct ProfileDetailView: View {
                         Button("删除配置", role: .destructive) {
                             showingDelete = true
                         }
-                        .disabled(vpn.busy || vpn.isActive)
+                        .disabled(!vpn.canRemoveProfile(profile.id))
                     } footer: {
                         Text(
                             profile.sourceURL != nil

@@ -1,5 +1,6 @@
 import NetworkExtension
 import SwiftUI
+import Charts
 import UIKit
 
 struct ConnectionPage: View {
@@ -9,6 +10,7 @@ struct ConnectionPage: View {
     @State private var showingDisclosure = false
     @State private var showingOutboundIP = false
     @State private var detection = OutboundIPDetection()
+    @State private var services = ServiceAvailability()
 
     let vpn: PrototypeVPN
     var onImportFile: () -> Void
@@ -51,7 +53,7 @@ struct ConnectionPage: View {
                             .accessibilityLabel("全部更新")
                             .accessibilityIdentifier("update-all")
                             .disabled(
-                                vpn.busy || vpn.isActive
+                                vpn.busy || vpn.switchingProfile
                                     || !vpn.library.profiles.contains { $0.sourceURL != nil }
                             )
                         }
@@ -69,7 +71,7 @@ struct ConnectionPage: View {
                                 ProgressView(connectionProgress)
                                     .controlSize(.small)
                             } else {
-                                Label(VPNStatusText.status(vpn), systemImage: "bolt.shield")
+                                Label(LocalizedStringKey(VPNStatusText.status(vpn)), systemImage: "bolt.shield")
                             }
                         }
                         .disabled(connectToggleDisabled)
@@ -89,6 +91,11 @@ struct ConnectionPage: View {
                     currentNodeSection(profile)
                 }
 
+                if vpn.isActive {
+                    dashboardSection
+                }
+
+                serviceStatusSection
                 networkDetectionSection
 
                 if let issue = vpn.issue, issue != .storage,
@@ -118,15 +125,16 @@ struct ConnectionPage: View {
             }
             .onAppear { refreshDetectionIfNeeded() }
             .onChange(of: vpn.status) { _, status in
+                services.cancel()
                 refreshDetection(after: status)
             }
-            .onChange(of: vpn.library.trafficMode) { _, _ in
-                guard vpn.isActive else { return }
-                refreshDetectionSoon()
-            }
-            .onChange(of: vpn.library.selectedProfile?.selectedNodeID) { _, _ in
-                guard vpn.isActive else { return }
-                refreshDetectionSoon()
+            .onChange(of: vpn.routeRevision) { _, _ in
+                services.cancel()
+                guard !isRunningForPreviews else { return }
+                detection.invalidate()
+                if vpn.routeChangesInFlight == 0, [.connected, .disconnected].contains(vpn.status) {
+                    detection.refreshForRouteChange()
+                }
             }
         }
     }
@@ -159,7 +167,7 @@ struct ConnectionPage: View {
                 .accessibilityLabel("添加配置")
                 .accessibilityIdentifier("add-profile")
         }
-        .disabled(vpn.busy || vpn.isActive)
+        .disabled(vpn.busy || vpn.switchingProfile)
     }
 
     private func profileRow(_ profile: Profile) -> some View {
@@ -199,7 +207,7 @@ struct ConnectionPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(vpn.switchingProfile || (vpn.busy && !vpn.latencyTesting && !vpn.isActive))
+        .disabled(!vpn.canSelectProfile)
         .accessibilityIdentifier("profile-\(profile.name)")
         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             if profile.sourceURL != nil {
@@ -209,7 +217,7 @@ struct ConnectionPage: View {
                     Label("更新", systemImage: "arrow.clockwise")
                 }
                 .tint(.blue)
-                .disabled(vpn.busy || vpn.isActive)
+                .disabled(!vpn.canUpdateProfile(profile.id))
             }
             Button {
                 onShowDetail(profile.id)
@@ -222,7 +230,7 @@ struct ConnectionPage: View {
             } label: {
                 Label("删除", systemImage: "trash")
             }
-            .disabled(vpn.busy || vpn.isActive)
+            .disabled(!vpn.canRemoveProfile(profile.id))
         }
         .contextMenu {
             if profile.sourceURL != nil {
@@ -231,7 +239,7 @@ struct ConnectionPage: View {
                 } label: {
                     Label("更新", systemImage: "arrow.clockwise")
                 }
-                .disabled(vpn.busy || vpn.isActive)
+                .disabled(!vpn.canUpdateProfile(profile.id))
             }
             Button {
                 onShowDetail(profile.id)
@@ -246,7 +254,7 @@ struct ConnectionPage: View {
             } label: {
                 Label("删除", systemImage: "trash")
             }
-            .disabled(vpn.busy || vpn.isActive)
+            .disabled(!vpn.canRemoveProfile(profile.id))
         }
     }
 
@@ -317,15 +325,99 @@ struct ConnectionPage: View {
         return vpn.isActive ? text + " 连接中切换会立即应用到当前连接。" : text
     }
 
+    private var serviceStatusSection: some View {
+        Section {
+            ForEach(ServiceTarget.allCases) { target in
+                HStack {
+                    Text(target.rawValue)
+                    Spacer()
+                    if let result = services.results[target] {
+                        Text(serviceDescription(result))
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    } else {
+                        Text(services.isChecking ? "检测中…" : "未检测")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                }
+            }
+        } header: {
+            HStack {
+                Text("服务状态")
+                Spacer()
+                Button {
+                    services.refresh()
+                } label: {
+                    if services.isChecking { ProgressView().controlSize(.mini) }
+                    else { Image(systemName: "arrow.clockwise") }
+                }
+                .buttonStyle(.borderless)
+                .disabled(services.isChecking || vpn.routeChangesInFlight > 0)
+                .accessibilityLabel("检测服务状态")
+            }
+        } footer: {
+            Text("检测服务连通性与可识别的地区限制。结果取决于当前路由。")
+        }
+    }
+
+    private func serviceDescription(_ result: ServiceAvailabilityResult) -> String {
+        let status: String
+        switch result.status {
+        case .reachable: status = "可连接"
+        case .restricted: status = "地区或访问受限"
+        case .unavailable: status = "连接失败"
+        case .unknown: status = "状态待确认"
+        }
+        var parts = [status]
+        if let region = result.region, !region.isEmpty { parts.append(region) }
+        if let latency = result.latency { parts.append("\(latency) ms") }
+        return parts.joined(separator: " · ")
+    }
+
+    private var dashboardSection: some View {
+        Section("实时流量") {
+            HStack {
+                Label("下载 \(rateText(vpn.network.downloadRate))", systemImage: "arrow.down")
+                Spacer()
+                Label("上传 \(rateText(vpn.network.uploadRate))", systemImage: "arrow.up")
+            }
+            .font(.caption)
+            if !vpn.network.rateHistory.isEmpty {
+                Chart(vpn.network.rateHistory) { sample in
+                    LineMark(x: .value("时间", sample.date), y: .value("下载", sample.download))
+                        .foregroundStyle(.blue)
+                    LineMark(x: .value("时间", sample.date), y: .value("上传", sample.upload))
+                        .foregroundStyle(.orange)
+                }
+                .chartXAxis(.hidden)
+                .frame(height: 100)
+                .accessibilityLabel("最近一分钟的下载与上传速率")
+            }
+            LabeledContent("会话接收", value: VPNStatusText.bytes(vpn.network.downloadTotal))
+            LabeledContent("会话发送", value: VPNStatusText.bytes(vpn.network.uploadTotal))
+            HStack {
+                LabeledContent("内核内存", value: vpn.network.memoryFootprint.map { VPNStatusText.bytes($0) } ?? "暂不可用")
+                Button("释放") { vpn.freeTunnelMemory() }
+                    .buttonStyle(.borderless)
+                    .disabled(vpn.status != .connected)
+            }
+        }
+    }
+
+    private func rateText(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: max(0, value), countStyle: .binary) + "/s"
+    }
+
     @ViewBuilder private func currentNodeSection(_ profile: Profile) -> some View {
         Section {
             Picker("分流模式", selection: modeBinding) {
                                 ForEach(TrafficMode.allCases, id: \.self) { mode in
-                                    Text(mode.title).tag(mode)
+                                    Text(LocalizedStringKey(mode.title)).tag(mode)
                                 }
                             }
                             .pickerStyle(.segmented)
-                            .disabled(vpn.busy)
+                            .disabled(vpn.busy || vpn.switchingProfile)
                             .accessibilityIdentifier("mode-picker")
             Button {
                 guard vpn.canSwitchNodes(for: profile.id) else { return }
@@ -333,7 +425,7 @@ struct ConnectionPage: View {
             } label: {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(profile.selectedOutboundName ?? "未选择节点")
+                        Text(currentStrategyText(profile))
                             .foregroundStyle(.primary)
                         Text(nodeSubtitle(profile))
                             .font(.caption)
@@ -361,6 +453,15 @@ struct ConnectionPage: View {
         } header: {
             Text("当前节点")
         }
+    }
+
+    private func currentStrategyText(_ profile: Profile) -> String {
+        if vpn.library.trafficMode == .direct { return "直连" }
+        if let root = vpn.library.trafficMode == .global ? "GLOBAL" : profile.clashGroup {
+            let chain = vpn.strategyChain(from: root, profile: profile)
+            if chain.count > 1 { return chain.joined(separator: " → ") }
+        }
+        return profile.selectedOutboundName ?? "未选择节点"
     }
 
     @ViewBuilder private func currentNodeLatencyAction(_ profile: Profile) -> some View {
@@ -401,7 +502,7 @@ struct ConnectionPage: View {
                         .foregroundStyle(.secondary)
                     Button("重新检测") { detection.refresh() }
                         .font(.callout)
-                        .disabled(detection.isChecking)
+                        .disabled(detection.isChecking || vpn.routeChangesInFlight > 0)
                 }
             } else {
                 HStack(spacing: 8) {
@@ -428,7 +529,7 @@ struct ConnectionPage: View {
                     }
                 }
                 .buttonStyle(.borderless)
-                .disabled(detection.isChecking)
+                .disabled(detection.isChecking || vpn.routeChangesInFlight > 0)
                 .accessibilityLabel("重新检测出口 IP")
                 .accessibilityIdentifier("refresh-network-detection")
             }
@@ -457,10 +558,10 @@ struct ConnectionPage: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 3) {
-                Text("质量 \(report.quality.title)")
+                (Text("质量") + Text(" ") + Text(LocalizedStringKey(report.quality.title)))
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(detectionColor(report.quality))
-                Text(report.kind.title)
+                Text(LocalizedStringKey(report.kind.title))
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -498,21 +599,15 @@ struct ConnectionPage: View {
     }
 
     private func refreshDetectionIfNeeded() {
-        guard !isRunningForPreviews else { return }
+        guard !isRunningForPreviews, vpn.routeChangesInFlight == 0 else { return }
         detection.refreshIfStale()
     }
 
     private func refreshDetection(after status: NEVPNStatus) {
         guard !isRunningForPreviews else { return }
-        guard status == .connected || status == .disconnected else { return }
-        refreshDetectionSoon()
-    }
-
-    /// Waits for the core to apply a mode or node change before asking again.
-    private func refreshDetectionSoon() {
-        Task {
-            try? await Task.sleep(for: .seconds(1))
-            detection.refresh()
+        detection.invalidate()
+        if vpn.routeChangesInFlight == 0, [.connected, .disconnected].contains(status) {
+            detection.refreshForRouteChange()
         }
     }
 

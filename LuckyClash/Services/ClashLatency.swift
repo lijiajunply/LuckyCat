@@ -53,6 +53,10 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
     private let queue = DispatchQueue(label: "com.luckyfish.LuckyClash.latency")
     private let stateLock = NSLock()
     private var cancelRequested = false
+    // Accessed only on `queue`, alongside the matcher and its private engine.
+    private var matchGeoSources: [String: ClashRuleResources.FileIdentity] = [:]
+    private var matchGeoPrepared = Set<String>()
+    private var matchMMDBSource: ClashRuleResources.FileIdentity?
 
     func cancel() {
         stateLock.lock()
@@ -70,20 +74,19 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
         configuration: String,
         nodes: [String],
         testURL: String = ClashLatencyTester.defaultTestURL,
+        timeout: Int = ClashDelayRequest.defaultTimeout,
         progress: @escaping @Sendable (_ name: String, _ delay: Int) -> Void
     ) async throws -> [String: Int] {
         let endpoint = testURL.trimmingCharacters(in: .whitespacesAndNewlines)
         let url = endpoint.isEmpty ? Self.defaultTestURL : endpoint
-        stateLock.lock()
-        cancelRequested = false
-        stateLock.unlock()
+        stateLock.withLock { cancelRequested = false }
         return try await withCheckedThrowingContinuation { continuation in
             queue.async { [self] in
                 do {
                     continuation.resume(
                         returning: try run(
                             configuration: configuration, nodes: nodes,
-                            testURL: url, progress: progress
+                            testURL: url, timeout: timeout, progress: progress
                         )
                     )
                 } catch {
@@ -93,12 +96,84 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
         }
     }
 
+    func simulateRule(_ yaml: String, host: String) async throws -> ClashRuleMatch {
+        try await withCheckedThrowingContinuation { continuation in
+            queue.async { [self] in
+                do {
+                    let base = try Self.prepareEngine()
+                    let sourceDirectory = try ClashGeodata.workingDirectory()
+                    let workingDirectory = base.appending(path: "working", directoryHint: .isDirectory)
+                    try prepareMatchGeodata(yaml, sourceDirectory: sourceDirectory, workingDirectory: workingDirectory)
+                    let snapshot = try ClashRuleResources.stage(
+                        document: yaml, sourceDirectory: sourceDirectory, workingDirectory: workingDirectory
+                    )
+                    defer { try? FileManager.default.removeItem(at: snapshot.directory) }
+                    let query = String(decoding: try JSONEncoder().encode(["host": host]), as: UTF8.self)
+                    var error: NSError?
+                    guard let result = ClashMatchRuleForIOS(snapshot.document, snapshot.resourceMap, query, &error) else {
+                        throw error ?? ClashLatencyFailure.unavailable
+                    }
+                    continuation.resume(returning: try JSONDecoder().decode(
+                        ClashRuleMatch.self, from: Data(result.value.utf8)
+                    ))
+                } catch { continuation.resume(throwing: error) }
+            }
+        }
+    }
+
+    private func prepareMatchGeodata(_ yaml: String, sourceDirectory: URL, workingDirectory: URL) throws {
+        let requirements = ClashGeodata.requirements(for: yaml)
+        var changed = false
+        var nextSources = matchGeoSources
+        var nextPrepared = matchGeoPrepared
+        var nextMMDBSource = matchMMDBSource
+        for requirement in requirements {
+            let name: String
+            switch (requirement.kind, requirement.format) {
+            case ("geosite", _): name = ClashGeodata.geoSiteFileName
+            case ("geoip", "dat"): name = ClashGeodata.geoIPFileName
+            case ("geoip", "mmdb"): name = ClashGeodata.geoIPDatabaseFileName
+            default: continue
+            }
+            let identity = try ClashRuleResources.syncGeodata(name: name, sourceDirectory: sourceDirectory,
+                                                              workingDirectory: workingDirectory)
+            if name == ClashGeodata.geoIPDatabaseFileName, let previous = matchMMDBSource,
+               let identity, previous != identity {
+                throw ClashLatencyFailure.engine("GeoIP 数据库已更新，请重新打开 App 后再模拟规则。")
+            }
+            if !matchGeoPrepared.contains(name) || matchGeoSources[name] != identity {
+                changed = true
+                nextPrepared.insert(name)
+                nextSources[name] = identity
+            }
+            if name == ClashGeodata.geoIPDatabaseFileName, let identity { nextMMDBSource = identity }
+        }
+        guard changed else { return }
+        // This app-owned working directory is separate from the tunnel. The
+        // SDK's catalog teardown clears its in-memory Geo matchers; remove its
+        // compiled copies too so a replaced source cannot reuse old indexes.
+        for name in ["compiled-geosite", "compiled-geoip"] {
+            let directory = workingDirectory.appendingPathComponent(name, isDirectory: true)
+            if FileManager.default.fileExists(atPath: directory.path) {
+                try FileManager.default.removeItem(at: directory)
+            }
+        }
+        var error: NSError?
+        guard ClashRuleProviderCatalogForIOS("{}", nil, false, &error) != nil else {
+            throw error ?? ClashLatencyFailure.unavailable
+        }
+        matchGeoSources = nextSources
+        matchGeoPrepared = nextPrepared
+        matchMMDBSource = nextMMDBSource
+    }
+
     // MARK: - Session
 
     private func run(
         configuration: String,
         nodes: [String],
         testURL: String,
+        timeout: Int,
         progress: @escaping @Sendable (_ name: String, _ delay: Int) -> Void
     ) throws -> [String: Int] {
         _ = try Self.prepareEngine()
@@ -149,7 +224,7 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
         guard connected else { throw ClashLatencyFailure.unavailable }
 
         return Self.measure(
-            client: client, nodes: nodes, testURL: testURL, progress: progress,
+            client: client, nodes: nodes, testURL: testURL, timeout: timeout, socketPath: socketPath, progress: progress,
             cancelled: { self.isCancelled }
         )
     }
@@ -158,10 +233,13 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
         client: ClashAPIClient,
         nodes: [String],
         testURL: String,
+        timeout: Int,
+        socketPath: String,
         progress: @escaping @Sendable (_ name: String, _ delay: Int) -> Void,
         cancelled: @escaping @Sendable () -> Bool
     ) -> [String: Int] {
         let box = ClientBox(client: client)
+        let providers = ClashDelayRequest.providers(client: client, timeout: timeout)
         let results = DelayResults()
         let workers = DispatchQueue(label: "com.luckyfish.LuckyClash.latency.tests", attributes: .concurrent)
         let group = DispatchGroup()
@@ -179,12 +257,10 @@ nonisolated final class ClashLatencyTester: @unchecked Sendable {
                     group.leave()
                 }
                 guard !cancelled() else { return }
-                var delay: Int = -1
-                do {
-                    try box.client.urlTest(name, testURL: testURL, ret0_: &delay)
-                } catch {
-                    delay = -1
-                }
+                let delay = ClashDelayRequest.measure(
+                    name: name, testURL: testURL, timeout: timeout,
+                    socketPath: socketPath, client: box.client, provider: providers[name]
+                )
                 results.set(delay, for: name)
                 progress(name, delay)
             }

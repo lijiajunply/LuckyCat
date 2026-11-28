@@ -68,10 +68,10 @@ struct OutboundIPDetailView: View {
                     .textSelection(.enabled)
             }
             LabeledContent("等级") {
-                Text(report.quality.title)
+                Text(LocalizedStringKey(report.quality.title))
                     .foregroundStyle(color(report.quality))
             }
-            LabeledContent("类型", value: report.kind.title)
+            LabeledContent("类型") { Text(LocalizedStringKey(report.kind.title)) }
             LabeledContent("命中标记", value: report.flags.isEmpty ? "无" : report.flags.joined(separator: "、"))
             if !report.countryName.isEmpty {
                 LabeledContent("国家/地区", value: country(report))

@@ -1,22 +1,82 @@
 import SwiftUI
+import NetworkExtension
 
 struct SettingsPage: View {
     let vpn: PrototypeVPN
     let onShowProfile: (UUID) -> Void
+    @AppStorage(ClashDelayRequest.timeoutKey) private var delayTimeout = ClashDelayRequest.defaultTimeout
 
     var body: some View {
         NavigationStack {
             List {
                 Section("配置与资源") {
                     NavigationLink {
+                        CustomProfileBuilderView(vpn: vpn)
+                    } label: {
+                        Label("自定义配置", systemImage: "slider.horizontal.3")
+                    }
+                    NavigationLink {
+                        BackupRestoreView(vpn: vpn)
+                    } label: {
+                        Label("备份与恢复", systemImage: "archivebox")
+                    }
+                    NavigationLink {
                         SubscriptionManagementView(vpn: vpn, onShowDetail: onShowProfile)
                     } label: {
                         Label("订阅管理", systemImage: "arrow.clockwise")
                     }
                     NavigationLink {
+                        SubscriptionRequestSettingsView()
+                    } label: {
+                        Label("订阅请求", systemImage: "network.badge.shield.half.filled")
+                    }
+                    NavigationLink {
                         ResourceManagementView(vpn: vpn)
                     } label: {
                         Label("资源管理", systemImage: "externaldrive")
+                    }
+                    NavigationLink {
+                        ProxyShareView(vpn: vpn)
+                    } label: {
+                        Label("局域网共享", systemImage: "wifi")
+                    }
+                    NavigationLink {
+                        AdvancedNetworkView(vpn: vpn)
+                    } label: {
+                        Label("高级网络", systemImage: "network")
+                    }
+                    NavigationLink {
+                        ConfigurationOverridesView(vpn: vpn)
+                    } label: {
+                        Label("全局覆写", systemImage: "slider.horizontal.3")
+                    }
+                    NavigationLink {
+                        ProvidersView(vpn: vpn)
+                    } label: {
+                        Label("节点与规则 Providers", systemImage: "square.stack.3d.up")
+                    }
+                }
+
+                if vpn.status == .connected {
+                    Section("DNS 缓存") {
+                        Button("清理 DNS 缓存") { flushDNS(fakeIP: false) }
+                        Button("清理 Fake-IP 缓存") { flushDNS(fakeIP: true) }
+                    }
+                }
+
+                Section("延迟测试") {
+                    Picker("超时", selection: $delayTimeout) {
+                        ForEach([1, 2, 3, 5, 8, 10, 15], id: \.self) { seconds in
+                            Text("\(seconds) 秒").tag(seconds * 1000)
+                        }
+                    }
+                }
+
+                Section("外观") {
+                    NavigationLink {
+                        AppearanceSettingsView()
+                    } label: {
+                        Label("外观与强调色", systemImage: "paintpalette")
                     }
                 }
 
@@ -25,6 +85,16 @@ struct SettingsPage: View {
                         compatibilityDetails
                     } label: {
                         Label("配置兼容性", systemImage: "doc.text")
+                    }
+                    NavigationLink {
+                        NetworkQualityView()
+                    } label: {
+                        Label("网络质量与 NAT", systemImage: "waveform.path.ecg")
+                    }
+                    NavigationLink {
+                        DNSDiagnosticsView(vpn: vpn)
+                    } label: {
+                        Label("DNS 排查", systemImage: "magnifyingglass")
                     }
                     NavigationLink {
                         DiagnosticsView(log: vpn.diagnostics)
@@ -41,6 +111,16 @@ struct SettingsPage: View {
             }
             .listStyle(.insetGrouped)
             .navigationTitle("设置")
+        }
+        .toast(vpn.toast)
+    }
+
+    private func flushDNS(fakeIP: Bool) {
+        Task {
+            do {
+                try await vpn.live.flushDNSCache(fakeIP: fakeIP)
+                vpn.showToast("缓存已清理", isSuccess: true)
+            } catch { vpn.showToast(error.localizedDescription) }
         }
     }
 

@@ -8,7 +8,7 @@ struct ProfileNodeRow: View {
 
     var body: some View {
         Button {
-            guard group?.isSelectable != false, vpn.canSwitchNodes(for: profile.id) else { return }
+            guard vpn.canSwitchNodes(for: profile.id) else { return }
             vpn.select(profileID: profile.id, nodeID: node.id, group: group?.name)
         } label: {
             HStack(spacing: 10) {
@@ -21,7 +21,8 @@ struct ProfileNodeRow: View {
                 }
                 Spacer(minLength: 8)
                 LatencyBadge(state: vpn.latencyState(for: node.name, profileID: profile.id, testURL: group.map { PrototypeVPN.normalizedTestURL($0.testURL) }))
-                if profile.clashSelectedMember == nil && profile.selectedNodeID == node.id && (group == nil || profile.clashGroup == group?.name) {
+                if group.map({ vpn.selectedMember(in: $0.name, profile: profile) == node.name })
+                    ?? (profile.selectedOutboundName == node.name) {
                     Image(systemName: "checkmark")
                         .foregroundStyle(.tint)
                         .accessibilityLabel("当前节点")
@@ -31,6 +32,7 @@ struct ProfileNodeRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(group.map { !$0.isSelectable && !$0.canPin } ?? false)
         .contextMenu { latencyAction }
         .swipeActions(edge: .trailing) { latencyAction }
         .accessibilityIdentifier("node-\(profile.name)-\(node.name)")

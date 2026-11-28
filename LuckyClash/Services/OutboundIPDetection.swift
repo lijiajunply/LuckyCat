@@ -161,6 +161,46 @@ final class OutboundIPDetection {
         return running
     }
 
+    /// Discards the previous route's result immediately and retries transient
+    /// failures after the caller confirms the new route has been applied.
+    @discardableResult
+    func refreshForRouteChange() -> Task<Void, Never> {
+        invalidate()
+        isChecking = true
+        let lookup = lookup
+        let running = Task { [weak self] in
+            var lastFailure: OutboundIPFailure?
+            for attempt in 0..<3 {
+                do {
+                    if attempt > 0 { try await Task.sleep(for: .milliseconds(400 * attempt)) }
+                    let report = try await lookup.perform()
+                    guard !Task.isCancelled else { return }
+                    self?.apply(report)
+                    return
+                } catch is CancellationError {
+                    return
+                } catch {
+                    guard !Task.isCancelled else { return }
+                    lastFailure = (error as? OutboundIPFailure) ?? OutboundIPFailure(
+                        failures: [.init(source: "检测", reason: error.localizedDescription)]
+                    )
+                }
+            }
+            if let lastFailure, !Task.isCancelled { self?.apply(lastFailure) }
+        }
+        task = running
+        return running
+    }
+
+    func invalidate() {
+        task?.cancel()
+        task = nil
+        report = nil
+        failure = nil
+        lastAttemptAt = nil
+        isChecking = false
+    }
+
     private func apply(_ report: OutboundIPReport) {
         self.report = report
         failure = nil

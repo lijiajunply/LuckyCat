@@ -1,0 +1,3798 @@
+{
+  "sourceLanguage" : "zh-Hans",
+  "strings" : {
+    " " : {
+
+    },
+    "%@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@"
+          }
+        }
+      }
+    },
+    "%@ · %@ · %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$@ · %3$@"
+          }
+        }
+      }
+    },
+    "%@ · %lld 个成员" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld 个成员"
+          }
+        }
+      }
+    },
+    "%@ · ↓ %@ · ↑ %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · ↓ %2$@ · ↑ %3$@"
+          }
+        }
+      }
+    },
+    "%lld" : {
+
+    },
+    "%lld ms" : {
+
+    },
+    "%lld 秒" : {
+
+    },
+    "%lld–%lld / %lld" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$lld–%2$lld / %3$lld"
+          }
+        }
+      }
+    },
+    "↑ %@" : {
+
+    },
+    "↓ %@" : {
+
+    },
+    "↓ %@ · ↑ %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "↓ %1$@ · ↑ %2$@"
+          }
+        }
+      }
+    },
+    "0 条" : {
+
+    },
+    "3 天" : {
+
+    },
+    "6 小时" : {
+
+    },
+    "7 天" : {
+
+    },
+    "12 小时" : {
+
+    },
+    "24 小时" : {
+
+    },
+    "ASN" : {
+
+    },
+    "Clash.Meta" : {
+
+    },
+    "DNS" : {
+
+    },
+    "DNS 排查" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DNS diagnostics"
+          }
+        }
+      }
+    },
+    "DNS 缓存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DNS cache"
+          }
+        }
+      }
+    },
+    "English" : {
+
+    },
+    "Fake-IP Filter，每行一个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fake-IP filters, one per line"
+          }
+        }
+      }
+    },
+    "Fallback，每行一个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fallback servers, one per line"
+          }
+        }
+      }
+    },
+    "Hosts，每行一个域名=IP" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hosts, one domain=IP per line"
+          }
+        }
+      }
+    },
+    "HTTPS 文件地址" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HTTPS file URL"
+          }
+        }
+      }
+    },
+    "https://example.com/config.yaml" : {
+
+    },
+    "IP 地址" : {
+
+    },
+    "IP 查询" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IP lookup"
+          }
+        }
+      }
+    },
+    "IPv4" : {
+
+    },
+    "IPv6" : {
+
+    },
+    "LuckyClash" : {
+
+    },
+    "Nameserver，每行一个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nameservers, one per line"
+          }
+        }
+      }
+    },
+    "NAT 检测" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NAT test"
+          }
+        }
+      }
+    },
+    "Provider · %@" : {
+
+    },
+    "Providers" : {
+
+    },
+    "STUN 服务器" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "STUN server"
+          }
+        }
+      }
+    },
+    "TUN IPv6" : {
+
+    },
+    "TUN MTU" : {
+
+    },
+    "TUN 参数在下次连接时生效。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "TUN settings take effect on the next connection."
+          }
+        }
+      }
+    },
+    "User-Agent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "User-Agent"
+          }
+        }
+      }
+    },
+    "VPN" : {
+
+    },
+    "VPN 数据使用" : {
+
+    },
+    "WebDAV" : {
+
+    },
+    "WebDAV 密码" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "WebDAV password"
+          }
+        }
+      }
+    },
+    "上一页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous"
+          }
+        }
+      }
+    },
+    "上传" : {
+
+    },
+    "上传 %@" : {
+
+    },
+    "上传加密备份" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload encrypted backup"
+          }
+        }
+      }
+    },
+    "上次更新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last updated"
+          }
+        }
+      }
+    },
+    "上次检测失败：%@" : {
+
+    },
+    "上次测速" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last tested"
+          }
+        }
+      }
+    },
+    "下一页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next"
+          }
+        }
+      }
+    },
+    "下次可自动更新" : {
+
+    },
+    "下载" : {
+
+    },
+    "下载 %@" : {
+
+    },
+    "下载备份并恢复" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download and restore"
+          }
+        }
+      }
+    },
+    "下载并预览" : {
+
+    },
+    "二维码导入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import QR code"
+          }
+        }
+      }
+    },
+    "仅 IPv4" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPv4 only"
+          }
+        }
+      }
+    },
+    "仅 IPv6" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IPv6 only"
+          }
+        }
+      }
+    },
+    "仅手动" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual only"
+          }
+        }
+      }
+    },
+    "仅支持 HTTPS，上限 8 MB。支持 Clash YAML、base64 订阅和分享链接；链接保存在本机用于手动或自动更新，不会写入诊断。" : {
+
+    },
+    "仅显示有命中记录的规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only show rules with hits"
+          }
+        }
+      }
+    },
+    "仅统计代理流量" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Count proxy traffic only"
+          }
+        }
+      }
+    },
+    "从 URL 导入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from URL"
+          }
+        }
+      }
+    },
+    "从右上角添加配置，或点击上方按钮导入。导入并选择一个配置后才能连接。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a profile from the top right or use the button above. Import and select a profile to connect."
+          }
+        }
+      }
+    },
+    "从文件导入" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import from file"
+          }
+        }
+      }
+    },
+    "从来源重新生成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rebuild from sources"
+          }
+        }
+      }
+    },
+    "从相册选择" : {
+
+    },
+    "从相册选择二维码" : {
+
+    },
+    "代理" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy"
+          }
+        }
+      }
+    },
+    "优" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Good"
+          }
+        }
+      }
+    },
+    "优先 IPv4" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prefer IPv4"
+          }
+        }
+      }
+    },
+    "优先 IPv6" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prefer IPv6"
+          }
+        }
+      }
+    },
+    "会话发送" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session upload"
+          }
+        }
+      }
+    },
+    "会话接收" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session download"
+          }
+        }
+      }
+    },
+    "会话流量" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session traffic"
+          }
+        }
+      }
+    },
+    "传输" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfer"
+          }
+        }
+      }
+    },
+    "住宅" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Residential"
+          }
+        }
+      }
+    },
+    "使用当前选择的配置连接 VPN。" : {
+
+    },
+    "例如 DOMAIN-SUFFIX,example.com,DIRECT。规则按顺序匹配，MATCH 会结束匹配。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "For example, DOMAIN-SUFFIX,example.com,DIRECT. Rules are matched in order; MATCH ends matching."
+          }
+        }
+      }
+    },
+    "依赖第三方 API，仅供参考。" : {
+
+    },
+    "保存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save"
+          }
+        }
+      }
+    },
+    "保存名称" : {
+
+    },
+    "保存策略组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save proxy group"
+          }
+        }
+      }
+    },
+    "保存规则" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save rule"
+          }
+        }
+      }
+    },
+    "信任的 Wi-Fi 名称，每行一个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trusted Wi-Fi names, one per line"
+          }
+        }
+      }
+    },
+    "信息" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Info"
+          }
+        }
+      }
+    },
+    "修改链接后点击更新订阅；获取成功后保存新链接。" : {
+
+    },
+    "停止共享" : {
+
+    },
+    "健康检查" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Health check"
+          }
+        }
+      }
+    },
+    "全局" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global"
+          }
+        }
+      }
+    },
+    "全局覆写" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global overrides"
+          }
+        }
+      }
+    },
+    "全部更新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update all"
+          }
+        }
+      }
+    },
+    "全部标签" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All tags"
+          }
+        }
+      }
+    },
+    "全部级别" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All levels"
+          }
+        }
+      }
+    },
+    "共享提供 HTTP 和 SOCKS 代理，当前内核要求用户名和密码。" : {
+
+    },
+    "关键词" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keyword"
+          }
+        }
+      }
+    },
+    "关闭" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close"
+          }
+        }
+      }
+    },
+    "关闭全部连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close all connections"
+          }
+        }
+      }
+    },
+    "关闭提示" : {
+
+    },
+    "兼容提示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatibility notice"
+          }
+        }
+      }
+    },
+    "内核内存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Core memory"
+          }
+        }
+      }
+    },
+    "内核功能" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Core features"
+          }
+        }
+      }
+    },
+    "内核操作失败" : {
+
+    },
+    "内核日志会在运行时追加到这里。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Core logs appear here while running."
+          }
+        }
+      }
+    },
+    "内核日志级别" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Core log level"
+          }
+        }
+      }
+    },
+    "最新在上" : {
+
+    },
+    "最近 %lld 条" : {
+
+    },
+    "最近一分钟的下载与上传速率" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download and upload rates over the last minute"
+          }
+        }
+      }
+    },
+    "出站 IP" : {
+
+    },
+    "分享" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share"
+          }
+        }
+      }
+    },
+    "分享将发送订阅链接，链接可能包含订阅令牌，请仅分享给信任的人。" : {
+
+    },
+    "分享将导出该配置的 YAML 文件，内容可能包含节点密码，请仅分享给信任的人。" : {
+
+    },
+    "分享订阅链接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Share subscription URL"
+          }
+        }
+      }
+    },
+    "分流模式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routing mode"
+          }
+        }
+      }
+    },
+    "切换 LuckyClash 分流模式" : {
+
+    },
+    "切换节点时关闭已有连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close existing connections when switching nodes"
+          }
+        }
+      }
+    },
+    "删除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete"
+          }
+        }
+      }
+    },
+    "删除配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete profile"
+          }
+        }
+      }
+    },
+    "删除配置？" : {
+
+    },
+    "到期" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Expires"
+          }
+        }
+      }
+    },
+    "到期后，下次在 VPN 已断开时打开 App 或回到前台会尝试更新。" : {
+
+    },
+    "前往连接页" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to Connect"
+          }
+        }
+      }
+    },
+    "前往配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to profiles"
+          }
+        }
+      }
+    },
+    "前置规则，每行一条" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prepend rules, one per line"
+          }
+        }
+      }
+    },
+    "加密备份已上传。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Encrypted backup uploaded."
+          }
+        }
+      }
+    },
+    "加载所选节点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Load selected nodes"
+          }
+        }
+      }
+    },
+    "包含所有网络" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Include all networks"
+          }
+        }
+      }
+    },
+    "匹配内容" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Match value"
+          }
+        }
+      }
+    },
+    "协议" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protocol"
+          }
+        }
+      }
+    },
+    "双栈" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dual stack"
+          }
+        }
+      }
+    },
+    "发送" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Upload"
+          }
+        }
+      }
+    },
+    "取消" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "取消检测" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel test"
+          }
+        }
+      }
+    },
+    "取消测速" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel test"
+          }
+        }
+      }
+    },
+    "取消编辑" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel editing"
+          }
+        }
+      }
+    },
+    "可连接" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reachable"
+          }
+        }
+      }
+    },
+    "各来源" : {
+
+    },
+    "同意并连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agree and connect"
+          }
+        }
+      }
+    },
+    "名称" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Name"
+          }
+        }
+      }
+    },
+    "启动共享" : {
+
+    },
+    "命中 %llu 次" : {
+
+    },
+    "命中标记" : {
+
+    },
+    "商业" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Business"
+          }
+        }
+      }
+    },
+    "国家/地区" : {
+
+    },
+    "在连接页选择一个配置，或从连接页导入新配置。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select or import a profile on the Connect page."
+          }
+        }
+      }
+    },
+    "域名" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Domain"
+          }
+        }
+      }
+    },
+    "域名或 IP" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Domain or IP"
+          }
+        }
+      }
+    },
+    "基础信息" : {
+
+    },
+    "增强模式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enhanced mode"
+          }
+        }
+      }
+    },
+    "备份与恢复" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup & restore"
+          }
+        }
+      }
+    },
+    "备份包含配置与节点凭据，使用密码加密。文件可保存到本机或 iCloud Drive。恢复会替换当前配置列表，请先断开 VPN。" : {
+
+    },
+    "备份密码" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup password"
+          }
+        }
+      }
+    },
+    "备份已恢复。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Backup restored."
+          }
+        }
+      }
+    },
+    "外观" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "外观与强调色" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance & accent color"
+          }
+        }
+      }
+    },
+    "外观模式" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appearance"
+          }
+        }
+      }
+    },
+    "失败" : {
+
+    },
+    "好" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OK"
+          }
+        }
+      }
+    },
+    "完成" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        }
+      }
+    },
+    "定位当前节点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Find selected node"
+          }
+        }
+      }
+    },
+    "实时流量" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live traffic"
+          }
+        }
+      }
+    },
+    "实时监听内核" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monitoring core live"
+          }
+        }
+      }
+    },
+    "实时速率" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live speed"
+          }
+        }
+      }
+    },
+    "密码" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password"
+          }
+        }
+      }
+    },
+    "导入提示" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import notes"
+          }
+        }
+      }
+    },
+    "导入的配置由固定版本的 Clash 内核在隧道内执行，支持 ss、ssr、vmess、vless、trojan、hysteria、hysteria2、tuic、wireguard、socks、http 等协议，以及策略组、域名规则、GEOIP、RULE-SET 与 Fake-IP。" : {
+
+    },
+    "导入配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import profile"
+          }
+        }
+      }
+    },
+    "导入预览" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import preview"
+          }
+        }
+      }
+    },
+    "导出加密备份" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export encrypted backup"
+          }
+        }
+      }
+    },
+    "导出日志" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export logs"
+          }
+        }
+      }
+    },
+    "导出诊断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export diagnostics"
+          }
+        }
+      }
+    },
+    "导出请求" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export requests"
+          }
+        }
+      }
+    },
+    "将从本机删除「%@」及其节点凭据。" : {
+
+    },
+    "将删除本机保存的全部诊断记录。" : {
+
+    },
+    "将清空当前显示的日志，不影响 VPN 连接。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear the displayed logs without affecting the VPN connection."
+          }
+        }
+      }
+    },
+    "将配置二维码放入取景框" : {
+
+    },
+    "尚无更新时间" : {
+
+    },
+    "尚未下载" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not downloaded"
+          }
+        }
+      }
+    },
+    "尚未检测" : {
+
+    },
+    "尚未选择配置" : {
+
+    },
+    "局域网共享" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LAN proxy sharing"
+          }
+        }
+      }
+    },
+    "局域网地址" : {
+
+    },
+    "已关闭" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disabled"
+          }
+        }
+      }
+    },
+    "已关闭请求 %lld" : {
+
+    },
+    "已固定" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned"
+          }
+        }
+      }
+    },
+    "已固定 %@，恢复自动选择" : {
+
+    },
+    "已就绪" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        }
+      }
+    },
+    "已开启" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enabled"
+          }
+        }
+      }
+    },
+    "已断开" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnected"
+          }
+        }
+      }
+    },
+    "已暂停" : {
+
+    },
+    "已更新于 %@" : {
+
+    },
+    "已用流量 %@" : {
+
+    },
+    "已连接" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
+          }
+        }
+      }
+    },
+    "已连接 VPN，但内核控制通道暂未就绪。若持续显示，请尝试重新连接。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "VPN is connected, but the core control channel is not ready. Try reconnecting if this persists."
+          }
+        }
+      }
+    },
+    "帮助与隐私" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Help & privacy"
+          }
+        }
+      }
+    },
+    "平均速率" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Average speed"
+          }
+        }
+      }
+    },
+    "应用按需连接设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply on-demand settings"
+          }
+        }
+      }
+    },
+    "应用语言" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "App language"
+          }
+        }
+      }
+    },
+    "延迟 %lld 毫秒" : {
+
+    },
+    "延迟测试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latency test"
+          }
+        }
+      }
+    },
+    "延迟测试在连接时通过正在运行的内核执行；断开时会在本机临时启动一个只用于测速的 Clash 内核，移除配置中的监听端口与规则，不会建立 VPN 隧道，也不会上传测试结果。" : {
+
+    },
+    "延迟测试失败" : {
+
+    },
+    "延迟测试链接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Latency test URL"
+          }
+        }
+      }
+    },
+    "开启" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "开始 NAT 检测" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start NAT test"
+          }
+        }
+      }
+    },
+    "开始带宽与响应性测试" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start bandwidth and responsiveness test"
+          }
+        }
+      }
+    },
+    "开始时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start time"
+          }
+        }
+      }
+    },
+    "强调色" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accent color"
+          }
+        }
+      }
+    },
+    "当前策略" : {
+
+    },
+    "当前节点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current proxy"
+          }
+        }
+      }
+    },
+    "当前选择" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current selection"
+          }
+        }
+      }
+    },
+    "当前配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current profile"
+          }
+        }
+      }
+    },
+    "当前配置列表和偏好设置将被备份内容替换。系统按需连接会暂停，重新连接时应用恢复后的设置。" : {
+
+    },
+    "恢复" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore"
+          }
+        }
+      }
+    },
+    "恢复刷新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume updates"
+          }
+        }
+      }
+    },
+    "恢复备份？" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restore backup?"
+          }
+        }
+      }
+    },
+    "恢复默认强调色" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset accent color"
+          }
+        }
+      }
+    },
+    "成员" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Members"
+          }
+        }
+      }
+    },
+    "成员名称" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Member name"
+          }
+        }
+      }
+    },
+    "手动节点分享链接，每行一个" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manual node share links, one per line"
+          }
+        }
+      }
+    },
+    "打开 App 或回到前台时，会尝试更新已到期且开启自动更新的订阅。更新前请断开 VPN。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When the app opens or returns to the foreground, expired subscriptions with automatic updates enabled will be updated. Disconnect VPN before updating."
+          }
+        }
+      }
+    },
+    "打开系统设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open System Settings"
+          }
+        }
+      }
+    },
+    "扩展" : {
+
+    },
+    "拒绝" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reject"
+          }
+        }
+      }
+    },
+    "按需连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect on demand"
+          }
+        }
+      }
+    },
+    "排序" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sort"
+          }
+        }
+      }
+    },
+    "接收" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        }
+      }
+    },
+    "搜索节点或策略组" : {
+
+    },
+    "操作" : {
+
+    },
+    "支持从文件、粘贴、HTTPS URL 或二维码导入（单次上限 8 MB），可保存来源链接、显示订阅流量与到期时间，并按配置的更新间隔自动更新。URL 可指向 Clash YAML、base64 订阅或分享链接。" : {
+
+    },
+    "支持订阅链接、clash:// 链接和分享链接" : {
+
+    },
+    "断开" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnect"
+          }
+        }
+      }
+    },
+    "断开 LuckyClash" : {
+
+    },
+    "断开 VPN" : {
+
+    },
+    "断开中" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnecting"
+          }
+        }
+      }
+    },
+    "断开当前 VPN 连接。" : {
+
+    },
+    "日志" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Logs"
+          }
+        }
+      }
+    },
+    "日志 %lld" : {
+
+    },
+    "日志操作" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Log actions"
+          }
+        }
+      }
+    },
+    "旧版 WireGuard YAML / JSON 配置仍可导入，会自动转换为 Clash WireGuard 节点；已有旧配置会在下次刷新或连接时迁移。" : {
+
+    },
+    "旧版 WireGuard 参数会转换为 Clash 配置，由内核在隧道内执行。" : {
+
+    },
+    "时间" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Time"
+          }
+        }
+      }
+    },
+    "显示上次会话" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Showing last session"
+          }
+        }
+      }
+    },
+    "普通" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Normal"
+          }
+        }
+      }
+    },
+    "暂不可用" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unavailable"
+          }
+        }
+      }
+    },
+    "暂停刷新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause updates"
+          }
+        }
+      }
+    },
+    "暂无数据" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No data"
+          }
+        }
+      }
+    },
+    "暂无日志" : {
+
+    },
+    "暂无活动连接" : {
+
+    },
+    "暂无订阅配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No subscription profiles"
+          }
+        }
+      }
+    },
+    "暂无诊断记录。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No diagnostic records."
+          }
+        }
+      }
+    },
+    "暂无请求历史" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No request history"
+          }
+        }
+      }
+    },
+    "更新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update"
+          }
+        }
+      }
+    },
+    "更新 Geo 资源" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Geo resources"
+          }
+        }
+      }
+    },
+    "更新于 %@" : {
+
+    },
+    "更新全部订阅" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update all subscriptions"
+          }
+        }
+      }
+    },
+    "更新订阅" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update subscription"
+          }
+        }
+      }
+    },
+    "更新配置" : {
+
+    },
+    "服务状态" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Service status"
+          }
+        }
+      }
+    },
+    "未就绪" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not ready"
+          }
+        }
+      }
+    },
+    "未检测" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not tested"
+          }
+        }
+      }
+    },
+    "未知" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unknown"
+          }
+        }
+      }
+    },
+    "未配置" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not configured"
+          }
+        }
+      }
+    },
+    "本地诊断" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Local diagnostics"
+          }
+        }
+      }
+    },
+    "机房" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hosting"
+          }
+        }
+      }
+    },
+    "来源" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source"
+          }
+        }
+      }
+    },
+    "来源已更改，请重新加载节点后保存。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sources have changed. Reload nodes before saving."
+          }
+        }
+      }
+    },
+    "来源已更新或不可用，请重新生成配置。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A source has changed or is unavailable. Rebuild the profile."
+          }
+        }
+      }
+    },
+    "查看和编辑 YAML" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View and edit YAML"
+          }
+        }
+      }
+    },
+    "查询" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Query"
+          }
+        }
+      }
+    },
+    "查询与解释" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Query and explain"
+          }
+        }
+      }
+    },
+    "标签" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tags"
+          }
+        }
+      }
+    },
+    "校验服务器证书" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verify server certificate"
+          }
+        }
+      }
+    },
+    "检测中…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
+          }
+        }
+      }
+    },
+    "检测失败" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check failed"
+          }
+        }
+      }
+    },
+    "检测时间" : {
+
+    },
+    "检测服务状态" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check service status"
+          }
+        }
+      }
+    },
+    "检测服务连通性与可识别的地区限制。结果取决于当前路由。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check service connectivity and detectable regional restrictions. Results depend on the current route."
+          }
+        }
+      }
+    },
+    "模式" : {
+
+    },
+    "模拟匹配" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simulate match"
+          }
+        }
+      }
+    },
+    "正在下载…" : {
+
+    },
+    "正在切换配置并重新连接…" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switching profile and reconnecting…"
+          }
+        }
+      }
+    },
+    "正在处理…" : {
+
+    },
+    "正在更新…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updating…"
+          }
+        }
+      }
+    },
+    "正在更新订阅…" : {
+
+    },
+    "正在更新资源…" : {
+
+    },
+    "正在检测出口 IP…" : {
+
+    },
+    "正在测试延迟" : {
+
+    },
+    "正在测试组内延迟" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testing latency in group"
+          }
+        }
+      }
+    },
+    "正在测试节点延迟…" : {
+
+    },
+    "正在等待 VPN 内核启动。连接 VPN 后会自动接入，无需刷新。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for the VPN core to start. It will connect automatically when VPN connects."
+          }
+        }
+      }
+    },
+    "正在请求相机权限…" : {
+
+    },
+    "正在请求连接" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requesting connection"
+          }
+        }
+      }
+    },
+    "每周" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly"
+          }
+        }
+      }
+    },
+    "每天" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily"
+          }
+        }
+      }
+    },
+    "每月" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monthly"
+          }
+        }
+      }
+    },
+    "没有匹配的日志" : {
+
+    },
+    "没有匹配的策略组。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching proxy groups."
+          }
+        }
+      }
+    },
+    "没有匹配的连接" : {
+
+    },
+    "没有符合条件的节点。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching nodes."
+          }
+        }
+      }
+    },
+    "没有符合条件的规则。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matching rules."
+          }
+        }
+      }
+    },
+    "活动连接 %lld" : {
+
+    },
+    "流量" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traffic"
+          }
+        }
+      }
+    },
+    "流量由内核实时统计，仅显示在本机。" : {
+
+    },
+    "浅色" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Light"
+          }
+        }
+      }
+    },
+    "测试使用 Apple 网络质量服务，会产生上下行流量。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The test uses Apple’s network quality service and consumes upload and download data."
+          }
+        }
+      }
+    },
+    "测试延迟" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test latency"
+          }
+        }
+      }
+    },
+    "测试组内延迟" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test group latency"
+          }
+        }
+      }
+    },
+    "测速地址" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test URL"
+          }
+        }
+      }
+    },
+    "浏览与模拟规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse and simulate rules"
+          }
+        }
+      }
+    },
+    "深色" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dark"
+          }
+        }
+      }
+    },
+    "添加到当前配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to current profile"
+          }
+        }
+      }
+    },
+    "添加策略组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add proxy group"
+          }
+        }
+      }
+    },
+    "添加规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add rule"
+          }
+        }
+      }
+    },
+    "添加配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add profile"
+          }
+        }
+      }
+    },
+    "清理 DNS 缓存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear DNS cache"
+          }
+        }
+      }
+    },
+    "清理 Fake-IP 缓存" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Fake-IP cache"
+          }
+        }
+      }
+    },
+    "清除" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "清除 DNS 缓存" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flush DNS cache"
+          }
+        }
+      }
+    },
+    "清除 Fake-IP 缓存" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Flush Fake-IP cache"
+          }
+        }
+      }
+    },
+    "清除日志" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear logs"
+          }
+        }
+      }
+    },
+    "清除日志？" : {
+
+    },
+    "清除记录" : {
+
+    },
+    "清除诊断记录？" : {
+
+    },
+    "清除请求" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear requests"
+          }
+        }
+      }
+    },
+    "清除请求历史？" : {
+
+    },
+    "状态" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status"
+          }
+        }
+      }
+    },
+    "状态待确认" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Status unknown"
+          }
+        }
+      }
+    },
+    "生效 YAML" : {
+
+    },
+    "生效规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Effective rules"
+          }
+        }
+      }
+    },
+    "用户名" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Username"
+          }
+        }
+      }
+    },
+    "由 Clash 内核按配置中的代理组和规则分流，支持 ss / vmess / vless / trojan / hysteria2 / tuic / wireguard 等节点。" : {
+
+    },
+    "留空时使用默认名称。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leave blank to use the default name."
+          }
+        }
+      }
+    },
+    "目标" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destination"
+          }
+        }
+      }
+    },
+    "目的地址" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Destination address"
+          }
+        }
+      }
+    },
+    "直接保存 YAML 会移除可视化编辑信息；如需保留，请使用自定义配置编辑器。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saving YAML directly removes the visual editing information. Use the custom profile editor to keep it."
+          }
+        }
+      }
+    },
+    "直连" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Direct"
+          }
+        }
+      }
+    },
+    "视图" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "View"
+          }
+        }
+      }
+    },
+    "移动网络" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mobile"
+          }
+        }
+      }
+    },
+    "移除缺失的来源" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove missing sources"
+          }
+        }
+      }
+    },
+    "端口" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Port"
+          }
+        }
+      }
+    },
+    "等待内核" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for core"
+          }
+        }
+      }
+    },
+    "等级" : {
+
+    },
+    "策略" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Policy"
+          }
+        }
+      }
+    },
+    "策略组" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy groups"
+          }
+        }
+      }
+    },
+    "策略组名称" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy group name"
+          }
+        }
+      }
+    },
+    "策略组标签" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Group tabs"
+          }
+        }
+      }
+    },
+    "策略组配置了测试链接时，优先使用策略组的链接。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A test URL configured for a proxy group takes precedence."
+          }
+        }
+      }
+    },
+    "策略解释" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Policy explanation"
+          }
+        }
+      }
+    },
+    "简体中文" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplified Chinese"
+          }
+        }
+      }
+    },
+    "类型" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type"
+          }
+        }
+      }
+    },
+    "类型，例如 DOMAIN-SUFFIX" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Type, e.g. DOMAIN-SUFFIX"
+          }
+        }
+      }
+    },
+    "粘贴配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste profile"
+          }
+        }
+      }
+    },
+    "级别" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Level"
+          }
+        }
+      }
+    },
+    "紧凑节点网格" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact node grid"
+          }
+        }
+      }
+    },
+    "组织" : {
+
+    },
+    "绕过私有地址" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass private addresses"
+          }
+        }
+      }
+    },
+    "继承" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inherit"
+          }
+        }
+      }
+    },
+    "继续" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continue"
+          }
+        }
+      }
+    },
+    "编辑" : {
+
+    },
+    "编辑策略组" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit proxy group"
+          }
+        }
+      }
+    },
+    "编辑自定义配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit custom profile"
+          }
+        }
+      }
+    },
+    "编辑规则" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Edit rule"
+          }
+        }
+      }
+    },
+    "编辑配置" : {
+
+    },
+    "网络" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network"
+          }
+        }
+      }
+    },
+    "网络日志" : {
+
+    },
+    "网络检测" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network check"
+          }
+        }
+      }
+    },
+    "网络质量" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network quality"
+          }
+        }
+      }
+    },
+    "网络质量与 NAT" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Network quality & NAT"
+          }
+        }
+      }
+    },
+    "网络页通过本机控制通道显示内核正在处理的连接与日志，连接中可直接切换分流模式和当前配置的节点。这些数据只保存在内存中，不会写入诊断、持久化或上传。" : {
+
+    },
+    "自动" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatic"
+          }
+        }
+      }
+    },
+    "自动更新" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auto update"
+          }
+        }
+      }
+    },
+    "自动更新仅在你打开 App 或手动触发时运行，不会在后台定时联网。订阅链接与配置内容不会写入诊断。" : {
+
+    },
+    "自动更新间隔" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update interval"
+          }
+        }
+      }
+    },
+    "自定义" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom"
+          }
+        }
+      }
+    },
+    "自定义 GeoIP HTTPS 地址" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom GeoIP HTTPS URL"
+          }
+        }
+      }
+    },
+    "自定义 GeoSite HTTPS 地址" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom GeoSite HTTPS URL"
+          }
+        }
+      }
+    },
+    "自定义地址优先于配置中的地址。自动更新在连接前检查，更新失败时保留旧文件。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom URLs take precedence over profile URLs. Automatic updates are checked before connecting; existing files are retained if an update fails."
+          }
+        }
+      }
+    },
+    "自定义配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Custom profile"
+          }
+        }
+      }
+    },
+    "节点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nodes"
+          }
+        }
+      }
+    },
+    "节点 Providers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy providers"
+          }
+        }
+      }
+    },
+    "节点与规则 Providers" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy and rule providers"
+          }
+        }
+      }
+    },
+    "节点兼容性" : {
+
+    },
+    "节点和 Provider 从所选配置生成快照。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nodes and providers are captured as a snapshot of the selected profiles."
+          }
+        }
+      }
+    },
+    "节点显示选项" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Node display options"
+          }
+        }
+      }
+    },
+    "节点由配置中的 proxy-providers 提供，连接时由内核加载。" : {
+
+    },
+    "节点链" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Proxy chain"
+          }
+        }
+      }
+    },
+    "规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rules"
+          }
+        }
+      }
+    },
+    "规则 Providers" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rule providers"
+          }
+        }
+      }
+    },
+    "规则顺序" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rule order"
+          }
+        }
+      }
+    },
+    "解析结果" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DNS result"
+          }
+        }
+      }
+    },
+    "订阅" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription"
+          }
+        }
+      }
+    },
+    "订阅 URL" : {
+
+    },
+    "订阅更新会覆盖原文中的本地修改，覆写会保留。" : {
+
+    },
+    "订阅流量 %@ / %@" : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "订阅流量 %1$@ / %2$@"
+          }
+        }
+      }
+    },
+    "订阅管理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscriptions"
+          }
+        }
+      }
+    },
+    "订阅请求" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Subscription requests"
+          }
+        }
+      }
+    },
+    "记录保留 7 天，最多 200 条。仅含事件、错误码与时间，不含密钥、订阅链接、访问目标或包内容。" : {
+
+    },
+    "记录类型" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record type"
+          }
+        }
+      }
+    },
+    "设置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "设置 VPN 连接" : {
+
+    },
+    "证书校验设置适用于订阅导入与更新。关闭校验后连接可能被第三方冒充。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Certificate validation applies to subscription imports and updates. Disabling it allows third parties to impersonate the server."
+          }
+        }
+      }
+    },
+    "该策略组暂无成员。" : {
+
+    },
+    "该配置已从本机移除。" : {
+
+    },
+    "该配置没有本地节点，节点由 proxy-providers 在连接时加载。" : {
+
+    },
+    "该配置没有本地节点。" : {
+
+    },
+    "详情" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details"
+          }
+        }
+      }
+    },
+    "详情与编辑" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Details and editing"
+          }
+        }
+      }
+    },
+    "语言" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Language"
+          }
+        }
+      }
+    },
+    "请检查网络连接，或稍后重新查询。" : {
+
+    },
+    "请检查订阅链接的地址，并使用 HTTPS。" : {
+
+    },
+    "请求" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requests"
+          }
+        }
+      }
+    },
+    "请求历史操作" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request history actions"
+          }
+        }
+      }
+    },
+    "调试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Debug"
+          }
+        }
+      }
+    },
+    "警告" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Warning"
+          }
+        }
+      }
+    },
+    "质量" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quality"
+          }
+        }
+      }
+    },
+    "资源管理" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resources"
+          }
+        }
+      }
+    },
+    "超时" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timeout"
+          }
+        }
+      }
+    },
+    "跟随系统" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System"
+          }
+        }
+      }
+    },
+    "跟随订阅（默认 24 小时）" : {
+
+    },
+    "跟随配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Use profile setting"
+          }
+        }
+      }
+    },
+    "路由" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Routing"
+          }
+        }
+      }
+    },
+    "运行状态" : {
+
+    },
+    "返回" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
+    "进程" : {
+
+    },
+    "远端" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remote"
+          }
+        }
+      }
+    },
+    "连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect"
+          }
+        }
+      }
+    },
+    "连接 LuckyClash" : {
+
+    },
+    "连接 VPN" : {
+
+    },
+    "连接 VPN 后可使用共享。" : {
+
+    },
+    "连接 VPN 后可查看实时连接与内核日志。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect VPN to see live connections and core logs."
+          }
+        }
+      }
+    },
+    "连接与日志只保存在本机内存，不会写入诊断或上传；退出 App 后清空。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connections and logs are kept only in local memory, not included in diagnostics or uploaded, and are cleared when the app exits."
+          }
+        }
+      }
+    },
+    "连接与测速" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection and latency tests"
+          }
+        }
+      }
+    },
+    "连接中" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecting"
+          }
+        }
+      }
+    },
+    "连接信任的 Wi-Fi 时断开 VPN，其他网络自动连接。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnect VPN on trusted Wi-Fi and connect automatically on other networks."
+          }
+        }
+      }
+    },
+    "连接信息" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection information"
+          }
+        }
+      }
+    },
+    "连接列表每秒刷新，日志在到达时追加。可通过滑动关闭单条连接。" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connections refresh every second and logs appear as they arrive. Swipe to close a connection."
+          }
+        }
+      }
+    },
+    "连接后查看 Providers" : {
+
+    },
+    "连接详情" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connection details"
+          }
+        }
+      }
+    },
+    "连接页的网络检测会向第三方 IP 查询服务发送当前出口 IP，仅用于显示归属地、类型与质量；查询结果只保留在内存中，不写入诊断，也不会保存。" : {
+
+    },
+    "追加规则，每行一条" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Append rules, one per line"
+          }
+        }
+      }
+    },
+    "选择 LuckyClash 策略组节点" : {
+
+    },
+    "选择备份恢复" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select backup to restore"
+          }
+        }
+      }
+    },
+    "选择默认节点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose default proxy"
+          }
+        }
+      }
+    },
+    "部分来源配置已删除，请移除后重新加载。" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some source profiles have been deleted. Remove them and reload."
+          }
+        }
+      }
+    },
+    "配置" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles"
+          }
+        }
+      }
+    },
+    "配置与资源" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profiles & resources"
+          }
+        }
+      }
+    },
+    "配置兼容性" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Configuration compatibility"
+          }
+        }
+      }
+    },
+    "配置内容" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile content"
+          }
+        }
+      }
+    },
+    "配置可能包含节点密码。保存时检查语法和基本结构；内核在应用时验证完整配置。订阅更新会覆盖修改。" : {
+
+    },
+    "配置名称" : {
+
+    },
+    "配置名称（可选）" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile name (optional)"
+          }
+        }
+      }
+    },
+    "配置已删除" : {
+
+    },
+    "配置概况" : {
+
+    },
+    "配置覆写" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile overrides"
+          }
+        }
+      }
+    },
+    "配置详情" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profile details"
+          }
+        }
+      }
+    },
+    "采用来源" : {
+
+    },
+    "释放" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Release"
+          }
+        }
+      }
+    },
+    "重新查询" : {
+
+    },
+    "重新检测" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check again"
+          }
+        }
+      }
+    },
+    "重新检测出口 IP" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check outbound IP again"
+          }
+        }
+      }
+    },
+    "重试" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry"
+          }
+        }
+      }
+    },
+    "重试连接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry connection"
+          }
+        }
+      }
+    },
+    "错误" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Error"
+          }
+        }
+      }
+    },
+    "附加规则" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Additional rules"
+          }
+        }
+      }
+    },
+    "隐私与数据使用" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Privacy & data use"
+          }
+        }
+      }
+    },
+    "隐藏 IP" : {
+
+    },
+    "隐藏只影响本机显示，不改变实际出口。" : {
+
+    },
+    "隐藏超时节点" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide timed-out nodes"
+          }
+        }
+      }
+    },
+    "预览" : {
+
+    },
+    "预览最终 YAML" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preview final YAML"
+          }
+        }
+      }
+    },
+    "风险" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Risky"
+          }
+        }
+      }
+    },
+    "高级网络" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Advanced network"
+          }
+        }
+      }
+    },
+    "默认" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        }
+      }
+    },
+    "默认测试链接" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default test URL"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

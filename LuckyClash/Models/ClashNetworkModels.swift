@@ -1,5 +1,12 @@
 import Foundation
 
+nonisolated struct ClashGroupState: Decodable, Equatable, Sendable {
+    let name: String
+    let all: [String]?
+    let now: String?
+    let fixed: String?
+}
+
 /// One active connection reported by the tunnel's Clash core through its Unix
 /// control socket. Fields mirror the core's `/connections` snapshot. Decoding
 /// is intentionally lenient: the core may omit fields, and its port values are
@@ -69,6 +76,20 @@ nonisolated struct ClashConnectionsSnapshot: Equatable, Sendable {
     var connections: [ClashConnection] = []
 }
 
+nonisolated struct ClashConnectionEvent: Sendable {
+    let type: String
+    let id: String
+    let connection: ClashConnection?
+    let upload: UInt64?
+    let download: UInt64?
+    let closedAt: Date?
+}
+
+nonisolated struct ClashConnectionEventBatch: Sendable {
+    let reset: Bool
+    let events: [ClashConnectionEvent]
+}
+
 nonisolated struct ClashTrafficRates: Equatable, Sendable {
     var upload: Int64 = 0
     var download: Int64 = 0
@@ -133,6 +154,23 @@ nonisolated enum ClashLiveParsing {
             return ClashConnectionsSnapshot(connections: items.compactMap(connection(from:)))
         }
         return nil
+    }
+
+    static func connectionEvents(from message: String) -> ClashConnectionEventBatch? {
+        guard let root = jsonObject(from: message) as? [String: Any],
+              let entries = root["events"] as? [[String: Any]] else { return nil }
+        let events = entries.compactMap { item -> ClashConnectionEvent? in
+            let id = string(item["id"])
+            let type = string(item["type"])
+            guard !id.isEmpty, ["new", "update", "closed"].contains(type) else { return nil }
+            return ClashConnectionEvent(
+                type: type, id: id, connection: item["connection"].flatMap { connection(from: $0) },
+                upload: item["upload"].map { uint64($0) },
+                download: item["download"].map { uint64($0) },
+                closedAt: date(item["closedAt"])
+            )
+        }
+        return ClashConnectionEventBatch(reset: root["reset"] as? Bool ?? false, events: events)
     }
 
     static func connection(from value: Any) -> ClashConnection? {

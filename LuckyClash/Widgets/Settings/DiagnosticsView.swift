@@ -33,6 +33,7 @@ struct DiagnosticsView: View {
             }
         }
         .navigationTitle("本地诊断")
+        .task { log.importTunnelEvents() }
         .alert("清除诊断记录？", isPresented: $showingClear) {
             Button("取消", role: .cancel) {}
             Button("清除", role: .destructive) { log.clear() }

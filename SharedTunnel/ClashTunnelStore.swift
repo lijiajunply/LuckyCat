@@ -3,7 +3,7 @@ import Foundation
 /// Stores the complete Clash configuration that the packet tunnel hands to the
 /// Clash core. Configuration files contain proxy credentials, so they live in
 /// the shared App Group container with file protection and never in logs.
-enum ClashTunnelStore {
+nonisolated enum ClashTunnelStore {
     static let maximumConfigurationBytes = 8 * 1024 * 1024
 
     static let engineKey = "engine"
@@ -12,6 +12,7 @@ enum ClashTunnelStore {
     static let revisionKey = "clashRevision"
     static let selectedGroupKey = "clashSelectedGroup"
     static let selectedNodeKey = "clashSelectedNode"
+    static let selectionsKey = "clashSelections"
     static let modeKey = "clashMode"
 
     private static let group = "group.com.luckyfish.LuckyClash"

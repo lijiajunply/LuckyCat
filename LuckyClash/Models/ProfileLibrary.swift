@@ -67,9 +67,43 @@ struct Profile: Codable, Identifiable {
     var autoUpdate: Bool? = nil
     var clashSelectedMember: String? = nil
     var updateIntervalOverrideHours: Int? = nil
+    var clashSelections: [String: String]? = nil
+    var overrides: ConfigurationOverrides? = nil
+    var effectiveRevision: UUID? = nil
+    var customRecipe: CustomProfileRecipe? = nil
 
     var selectedNode: Node? { nodes.first { $0.id == selectedNodeID } }
     var selectedOutboundName: String? { clashSelectedMember ?? selectedNode?.name }
+    var globalTarget: String? {
+        if let clashGroup, clashGroups?.contains(where: { $0.name == clashGroup && $0.canPin }) == true {
+            return groupSelections[clashGroup] ?? clashGroup
+        }
+        return clashSelectedMember ?? selectedNode.flatMap { $0.type == "auto" ? nil : $0.name }
+    }
+    var groupSelections: [String: String] {
+        if let clashSelections { return clashSelections }
+        guard let clashGroup, !clashGroup.isEmpty,
+              let member = clashSelectedMember ?? selectedNode.flatMap({ $0.type == "auto" ? nil : $0.name }),
+              !member.isEmpty else { return [:] }
+        return [clashGroup: member]
+    }
+
+    mutating func selectGroup(_ group: String, member: String?) {
+        var selections = groupSelections
+        selections[group] = member
+        clashSelections = selections
+        if let member {
+            clashGroup = group
+            if let node = nodes.first(where: { $0.name == member }) {
+                selectedNodeID = node.id
+                clashSelectedMember = nil
+            } else {
+                clashSelectedMember = member
+            }
+        } else if clashGroup == group {
+            clashSelectedMember = nil
+        }
+    }
     var resolvedEngine: Engine { engine ?? .wireGuard }
     var autoUpdateEnabled: Bool { autoUpdate ?? true }
 
@@ -91,6 +125,7 @@ struct ProfileLibrary: Codable {
     var profiles: [Profile] = []
     var selectedProfileID: UUID?
     var mode: TrafficMode? = nil
+    var overrides: ConfigurationOverrides? = nil
 
     var selectedProfile: Profile? { profiles.first { $0.id == selectedProfileID } }
 

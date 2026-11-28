@@ -37,6 +37,22 @@ final class DiagnosticLog {
         save()
     }
 
+    func importTunnelEvents() {
+        let pending = TunnelDiagnosticEvents.pending()
+        guard !pending.isEmpty else { return }
+        let existing = Set(records.map(\.id))
+        records.append(contentsOf: pending.compactMap { entry in
+            let event = entry.event
+            guard !existing.contains(event.id) else { return nil }
+            return DiagnosticRecord(id: event.id, timestamp: event.timestamp, event: Self.sanitize(event.message))
+        })
+        records.sort { $0.timestamp < $1.timestamp }
+        prune()
+        if save() {
+            for entry in pending { TunnelDiagnosticEvents.acknowledge(entry.url) }
+        }
+    }
+
     var exportText: String {
         records.map { "\($0.timestamp.formatted(.iso8601))  \($0.event)" }.joined(separator: "\n")
     }
@@ -67,14 +83,18 @@ final class DiagnosticLog {
         }
     }
 
-    private func save() {
-        guard let fileURL else { return }
-        try? FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
-        )
-        try? JSONEncoder().encode(records).write(
-            to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
-        )
+    @discardableResult
+    private func save() -> Bool {
+        guard let fileURL else { return false }
+        do {
+            try FileManager.default.createDirectory(
+                at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try JSONEncoder().encode(records).write(
+                to: fileURL, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
+            )
+            return true
+        } catch { return false }
     }
 
     static var defaultFileURL: URL {

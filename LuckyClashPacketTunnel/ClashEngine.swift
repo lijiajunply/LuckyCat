@@ -32,6 +32,9 @@ final class ClashEngine: NSObject, @unchecked Sendable {
     private static let availableFlag: UInt32 = 1 << 8
     private static let defaultFlag: UInt32 = 1 << 9
     private static let ownTunnelFlag: UInt32 = 1 << 10
+    // The SDK sets Go's soft limit to 75% of this budget. Leave room for
+    // Swift, NetworkExtension and the packet bridge outside the Go heap.
+    private static let memoryBudget: Int64 = 48 * 1024 * 1024
 
     private let provider: NEPacketTunnelProvider
     private let lifecycle = DispatchQueue(label: "com.luckyfish.LuckyClash.clash.lifecycle")
@@ -42,7 +45,12 @@ final class ClashEngine: NSObject, @unchecked Sendable {
     private var service: ClashBoxService?
     private var bridge: PacketFlowBridge?
     private var pathMonitor: NWPathMonitor?
+    private var memoryPressureMonitor: DispatchSourceMemoryPressure?
     private var interfaceListener: (any ClashInterfaceUpdateListenerProtocol)?
+    private var networkKind = ""
+    private var routers = ""
+    private var routeRecovery: DispatchWorkItem?
+    private var socketPath: String?
     private var defaultInterfaceIndex: UInt32 = 0
     private var defaultInterfaceName = ""
     private var pathExpensive = false
@@ -59,7 +67,7 @@ final class ClashEngine: NSObject, @unchecked Sendable {
 
     func start(
         configurationText: String,
-        selectedGroup: String?,
+        groupSelections: [String: String],
         selectedNode: String?,
         mode: TrafficMode?,
         completion: @escaping (Error?) -> Void
@@ -69,7 +77,7 @@ final class ClashEngine: NSObject, @unchecked Sendable {
                 startPathMonitor()
                 try prepareCore()
                 let service = try makeService()
-                self.service = service
+                stateLock.withLock { self.service = service }
 
                 let outcome = service.startClassified(configurationText)
                 let errorClass = outcome?.errorClass ?? "unknown"
@@ -77,28 +85,94 @@ final class ClashEngine: NSObject, @unchecked Sendable {
                     let message = outcome?.message ?? "Clash 内核拒绝配置。"
                     throw Failure.core(message)
                 }
-                if let selectedGroup, let selectedNode, !selectedGroup.isEmpty, !selectedNode.isEmpty {
-                    var selectError: NSError?
-                    if !ClashSelectProxy(selectedGroup, selectedNode, &selectError) {
-                        Self.log.notice("proxy selection was not applied: \(selectError?.localizedDescription ?? "unknown", privacy: .public)")
-                    }
-                }
-                if mode == .global {
-                    guard let selectedNode, !selectedNode.isEmpty else {
-                        throw Failure.core("全局模式需要选择一个代理节点。")
-                    }
-                    var selectError: NSError?
-                    if !ClashSelectProxy("GLOBAL", selectedNode, &selectError) {
-                        throw Failure.core("无法设置全局代理节点：\(selectError?.localizedDescription ?? "unknown")")
-                    }
-                }
+                try applySelection(groupSelections, globalNode: selectedNode, mode: mode)
                 Self.log.notice("clash core started: \(ClashVersion(), privacy: .public)")
                 completion(nil)
             } catch {
                 Self.log.error("clash start failed: \(error.localizedDescription, privacy: .public)")
+                recordStartupExplanation(previous: false)
                 stopLocked()
                 completion(error)
             }
+        }
+    }
+
+    func reload(
+        _ request: TunnelReloadMessage.Request,
+        completion: @escaping (TunnelReloadMessage.Reply) -> Void
+    ) {
+        lifecycle.async { [self] in
+            func finish(_ outcome: TunnelReloadMessage.Outcome, _ message: String? = nil) {
+                completion(.init(version: TunnelReloadMessage.version, id: request.id, outcome: outcome, message: message))
+            }
+            guard let service else {
+                finish(.restart)
+                return
+            }
+            let selection = request.selection
+            guard selection.mode != .global || !(selection.node ?? "").isEmpty else {
+                finish(.rejected, "全局模式需要选择一个代理节点。")
+                return
+            }
+            guard let configuration = try? selection.configuration() else {
+                finish(.rejected, "无法读取待应用的配置。")
+                return
+            }
+            let result = service.reloadClassified(configuration)
+            switch result?.errorClass {
+            case "", ClashCoreOutcomeCommitted:
+                do {
+                    try applySelection(selection.groupSelections, globalNode: selection.node, mode: selection.mode)
+                    finish(.applied)
+                } catch {
+                    finish(.restart)
+                }
+            case ClashCoreOutcomeConfig:
+                finish(.rejected, "内核拒绝新配置，当前连接继续使用原配置。")
+            default:
+                finish(.restart)
+            }
+        }
+    }
+
+    private func applySelection(_ groupSelections: [String: String], globalNode: String?, mode: TrafficMode?) throws {
+        // The core's optional YAML store-selected cache is shared by group
+        // name. Restore defaults for groups that this profile has never set.
+        if let socketPath, let client = ClashNewAPIClient(socketPath, APIControlHandler(), nil) {
+            defer { client.close() }
+            var error: NSError?
+            let groups = client.getGroups(&error)
+            if let entries = Self.evidenceFields(groups)?["proxies"] as? [[String: Any]] {
+                for entry in entries {
+                    guard let name = entry["name"] as? String, name != "GLOBAL",
+                          groupSelections[name] == nil,
+                          let type = (entry["type"] as? String)?.lowercased() else { continue }
+                    switch type {
+                    case "selector", "select":
+                        if let first = (entry["all"] as? [String])?.first {
+                            _ = ClashSelectProxy(name, first, nil)
+                        }
+                    case "urltest", "url-test", "fallback":
+                        if let fixed = entry["fixed"] as? String, !fixed.isEmpty {
+                            _ = ClashUnfixProxy(name, nil)
+                        }
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+        for (group, node) in groupSelections.sorted(by: { $0.key < $1.key }) where group != "GLOBAL" {
+            if !ClashSelectProxy(group, node, nil) {
+                Self.log.notice("saved proxy selection was not applied")
+            }
+        }
+        guard mode == .global else { return }
+        guard let node = globalNode, !node.isEmpty else {
+            throw Failure.core("全局模式需要选择一个代理节点。")
+        }
+        if !ClashSelectProxy("GLOBAL", node, nil) {
+            throw Failure.core("无法设置全局代理节点。")
         }
     }
 
@@ -106,6 +180,26 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         lifecycle.async { [self] in
             stopLocked()
             completion?()
+        }
+    }
+
+    func freeMemory(completion: @escaping () -> Void) {
+        lifecycle.async {
+            ClashFreeMemory()
+            completion()
+        }
+    }
+
+    func sleep(completion: @escaping () -> Void) {
+        lifecycle.async { [self] in
+            service?.pause()
+            completion()
+        }
+    }
+
+    func wake() {
+        lifecycle.async { [self] in
+            service?.wake()
         }
     }
 
@@ -128,6 +222,8 @@ final class ClashEngine: NSObject, @unchecked Sendable {
     // MARK: - Core setup
 
     private func stopLocked() {
+        memoryPressureMonitor?.cancel()
+        memoryPressureMonitor = nil
         stateLock.lock()
         bridge?.stop()
         bridge = nil
@@ -137,6 +233,10 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         try? current?.close()
         pathMonitor?.cancel()
         pathMonitor = nil
+        pathQueue.sync {
+            routeRecovery?.cancel()
+            routeRecovery = nil
+        }
         pathLock.lock()
         interfaceListener = nil
         pathLock.unlock()
@@ -154,9 +254,16 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         options.startupPhaseLogPath = container.appending(path: "startup-phases.log").path
         options.timeZone = TimeZone.current.identifier
         options.runtimeProfile = ClashRuntimeProfileIOSPacketTunnel
+        options.memoryLimit = Self.memoryBudget
+        options.memoryPressureShed = true
         options.logMaxLines = 500
         options.systemDNSServerLines = ClashSystemResolverLines()
-        options.includeAllNetworks = (provider.protocolConfiguration as? NETunnelProviderProtocol)?.includeAllNetworks ?? false
+        let tunnelProtocol = provider.protocolConfiguration as? NETunnelProviderProtocol
+        let settings = tunnelProtocol?.providerConfiguration
+        options.includeAllNetworks = tunnelProtocol?.includeAllNetworks ?? false
+        options.tunIPv6Mode = settings?[TunnelNetworkOptions.ipv6Mode] as? String ?? "config"
+        options.ipQueryMode = settings?[TunnelNetworkOptions.queryMode] as? String ?? "config"
+        options.tunMTU = settings?[TunnelNetworkOptions.mtu] as? Int ?? 0
         options.disablePersistentCache = false
         options.persistentCacheDirectory = URL.applicationSupportDirectory.path
 
@@ -164,6 +271,48 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         if !ClashSetup(options, &error) {
             throw error ?? Failure.core("Clash 内核初始化失败。")
         }
+        socketPath = container.appending(path: "clash.sock").path
+        collectPreviousEvidence()
+        let monitor = DispatchSource.makeMemoryPressureSource(eventMask: .critical, queue: lifecycle)
+        monitor.setEventHandler {
+            if ClashRecordMemoryPressureEvidence(nil) {
+                TunnelDiagnosticEvents.append("PacketTunnel 收到严重内存压力")
+            } else {
+                TunnelDiagnosticEvents.append("PacketTunnel 内存压力取证写入失败")
+            }
+        }
+        memoryPressureMonitor = monitor
+        monitor.activate()
+    }
+
+    private func collectPreviousEvidence() {
+        if let evidence = ClashConsumeOOMEvidence(nil),
+           let fields = Self.evidenceFields(evidence.value) {
+            let heap = (fields["heapInuseBytes"] as? NSNumber)?.int64Value ?? 0
+            let stack = (fields["stackInuseBytes"] as? NSNumber)?.int64Value ?? 0
+            let reloadPhase = fields["reloadPhase"] as? String ?? ""
+            let reload = ["parse", "apply"].first { $0 == reloadPhase }
+            let phase = reload.map { "，重载阶段 \($0)" } ?? ""
+            TunnelDiagnosticEvents.append("上次隧道可能因内存压力退出，Go 堆 \(heap / 1024) KiB，栈 \(stack / 1024) KiB\(phase)")
+        }
+        if let report = ClashConsumeGoCrashReport(nil), !report.value.isEmpty {
+            TunnelDiagnosticEvents.append("检测到上次隧道的 Go 崩溃报告（\(report.value.utf8.count) 字节）")
+        }
+        recordStartupExplanation(previous: true)
+    }
+
+    private func recordStartupExplanation(previous: Bool) {
+        guard let fields = Self.evidenceFields(ClashExplainLastStartup()) else { return }
+        let stage = fields["stage"] as? String ?? ""
+        // Export only the SDK's phase category and numeric footprint.
+        let category = ["bind", "parse", "apply"].first { stage.hasPrefix($0 + ":") } ?? "start"
+        let footprint = (fields["footprintBytes"] as? NSNumber)?.int64Value ?? 0
+        let label = previous ? "上次隧道启动未完成" : "本次隧道启动失败"
+        TunnelDiagnosticEvents.append("\(label)，阶段 \(category)，占用 \(footprint / 1024) KiB")
+    }
+
+    private static func evidenceFields(_ payload: String) -> [String: Any]? {
+        try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any]
     }
 
     private func makeService() throws -> ClashBoxService {
@@ -194,8 +343,7 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         if pathMonitor != nil { return }
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
-            guard let self else { return }
-            self.pathQueue.async { self.handle(path) }
+            self?.handle(path)
         }
         pathMonitor = monitor
         monitor.start(queue: pathQueue)
@@ -206,31 +354,80 @@ final class ClashEngine: NSObject, @unchecked Sendable {
     private func handle(_ path: Network.NWPath) {
         // Once the tunnel is up, NWPathMonitor can report our own utun as an
         // available interface. Never bind the core's outbound sockets to it.
-        let interface = path.availableInterfaces.first { !$0.name.hasPrefix("utun") }
+        let interface = path.status == .satisfied
+            ? path.availableInterfaces.first {
+                !$0.name.hasPrefix("utun") && $0.type != .loopback
+            }
+            : nil
+        let name = interface?.name ?? ""
+        let index = if_nametoindex(name)
+        let kind: String
+        switch interface?.type {
+        case .wifi: kind = "WIFI"
+        case .cellular: kind = "CELLULAR"
+        case .wiredEthernet: kind = "WIRED"
+        default: kind = ""
+        }
+        let gateways = index == 0 ? "" : path.gateways.compactMap(Self.gatewayAddress)
+            .sorted().joined(separator: ",")
 
         pathLock.lock()
-        if let interface, !interface.name.isEmpty {
-            defaultInterfaceName = interface.name
-            defaultInterfaceIndex = if_nametoindex(interface.name)
-        }
-        let name = defaultInterfaceName
-        let index = defaultInterfaceIndex
-        let satisfied = path.status == .satisfied && index != 0
+        let wasReady = firstPathArrived
+        let sameInterface = defaultInterfaceName == name
+        let routeChanged = index != defaultInterfaceIndex || gateways != routers || kind != networkKind
+            || path.supportsIPv4 != pathSupportsIPv4 || path.supportsIPv6 != pathSupportsIPv6
+        defaultInterfaceName = name
+        defaultInterfaceIndex = index
+        networkKind = kind
+        routers = gateways
         pathExpensive = path.isExpensive
         pathConstrained = path.isConstrained
         pathSupportsIPv4 = path.supportsIPv4
         pathSupportsIPv6 = path.supportsIPv6
         let listener = interfaceListener
-        let signal = satisfied && !firstPathArrived
+        let signal = index != 0 && !wasReady
         if signal { firstPathArrived = true }
         pathLock.unlock()
 
+        if routeChanged {
+            ClashSetNetworkIdentity(kind, gateways, nil, nil, nil)
+        }
+        // The SDK refreshes scoped DNS and resets sessions on interface
+        // changes. A gateway change can leave the interface name intact.
         listener?.updateDefaultInterface(
             name, interfaceIndex: Int32(bitPattern: index),
             isExpensive: path.isExpensive, isConstrained: path.isConstrained,
             supportsIPv4: path.supportsIPv4, supportsIPv6: path.supportsIPv6
         )
         if signal { firstPath.signal() }
+        if routeChanged {
+            routeRecovery?.cancel()
+            if wasReady, sameInterface, index != 0 {
+                let work = DispatchWorkItem { [weak self] in
+                    self?.lifecycle.async { [weak self] in self?.recoverSameInterfaceRoute() }
+                }
+                routeRecovery = work
+                pathQueue.asyncAfter(deadline: .now() + .milliseconds(300), execute: work)
+            }
+        }
+    }
+
+    private static func gatewayAddress(_ endpoint: Network.NWEndpoint) -> String? {
+        guard case .hostPort(let host, _) = endpoint else { return nil }
+        switch host {
+        case .ipv4(let address): return "\(address)"
+        case .ipv6(let address): return "\(address)".split(separator: "%").first.map(String.init)
+        default: return nil
+        }
+    }
+
+    private func recoverSameInterfaceRoute() {
+        guard service != nil, let socketPath else { return }
+        if let client = ClashNewAPIClient(socketPath, APIControlHandler(), nil) {
+            defer { client.close() }
+            try? client.flushDNSCache()
+        }
+        ClashCloseAllConnections()
     }
 
     fileprivate func bind(_ descriptor: Int32) throws {
@@ -359,6 +556,8 @@ final class ClashEngine: NSObject, @unchecked Sendable {
 
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "127.0.0.1")
         settings.mtu = NSNumber(value: options.getMTU())
+        let protocolSettings = (provider.protocolConfiguration as? NETunnelProviderProtocol)?.providerConfiguration
+        let bypassPrivate = protocolSettings?[TunnelNetworkOptions.bypassPrivate] as? Bool ?? false
 
         let dns = try options.getDNSServerAddress()
         guard !dns.value.isEmpty else { throw Failure.networkSettings }
@@ -379,6 +578,14 @@ final class ClashEngine: NSObject, @unchecked Sendable {
             ipv4.excludedRoutes = collect(options.getInet4RouteExcludeAddress()).map {
                 NEIPv4Route(destinationAddress: $0.address, subnetMask: $0.mask)
             }
+            if bypassPrivate {
+                let routes = [
+                    NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
+                    NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),
+                    NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0")
+                ]
+                ipv4.excludedRoutes = (ipv4.excludedRoutes ?? []) + routes
+            }
             settings.ipv4Settings = ipv4
         }
 
@@ -393,6 +600,11 @@ final class ClashEngine: NSObject, @unchecked Sendable {
                 : included.map { NEIPv6Route(destinationAddress: $0.address, networkPrefixLength: NSNumber(value: $0.prefix)) }
             ipv6.excludedRoutes = collect(options.getInet6RouteExcludeAddress()).map {
                 NEIPv6Route(destinationAddress: $0.address, networkPrefixLength: NSNumber(value: $0.prefix))
+            }
+            if bypassPrivate {
+                let local = NEIPv6Route(destinationAddress: "fc00::", networkPrefixLength: 7)
+                // Keep the tunnel's own ULA prefix routable via its more specific connected route.
+                ipv6.excludedRoutes = (ipv6.excludedRoutes ?? []) + [local]
             }
             settings.ipv6Settings = ipv6
         }
@@ -432,6 +644,16 @@ final class ClashEngine: NSObject, @unchecked Sendable {
         }
         return values
     }
+}
+
+private final class APIControlHandler: NSObject, ClashAPIClientHandlerProtocol {
+    func connected() {}
+    func disconnected(_ message: String?) {}
+    func writeLogs(_ message: String?) {}
+    func writeConnections(_ message: String?) {}
+    func writeTraffic(_ message: String?) {}
+    func writeMemory(_ message: String?) {}
+    func writeMode(_ message: String?) {}
 }
 
 // MARK: - Core platform callbacks

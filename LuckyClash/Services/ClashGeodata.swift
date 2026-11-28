@@ -1,13 +1,17 @@
 import Clash
 import Foundation
 
-/// Stages the `.dat` GeoIP / GeoSite files that GEOIP and GEOSITE rules need.
+/// Stages the GeoIP / GeoSite files required by the effective configuration.
 /// The files are shared by every imported profile and live in the extension's
 /// Clash working directory so the core never has to download them while the
 /// tunnel is coming up.
 enum ClashGeodata {
     nonisolated static let geoIPFileName = "GeoIP.dat"
     nonisolated static let geoSiteFileName = "GeoSite.dat"
+    nonisolated static let geoIPDatabaseFileName = "geoip.metadb"
+    nonisolated static let geoIPSourceKey = "geoIPSource"
+    nonisolated static let geoSiteSourceKey = "geoSiteSource"
+    nonisolated static let updateIntervalKey = "geoUpdateIntervalDays"
 
     enum Failure: LocalizedError {
         case download(String)
@@ -24,6 +28,16 @@ enum ClashGeodata {
     private struct Resource {
         let name: String
         let urls: [URL]
+    }
+
+    nonisolated struct Requirement: Decodable, Equatable {
+        let kind: String
+        let format: String
+        let url: String?
+    }
+
+    private struct Plan: Decodable {
+        let geodata: [Requirement]
     }
 
     nonisolated private static let defaultGeoIP = URL(
@@ -47,34 +61,86 @@ enum ClashGeodata {
     nonisolated private static let resourceTimeout: TimeInterval = 120
 
     nonisolated static func isRequired(_ yaml: String) -> Bool {
-        let upper = yaml.uppercased()
-        return upper.contains("GEOIP,") || upper.contains("GEOSITE,")
+        !requirements(for: yaml).isEmpty
     }
 
-    nonisolated static func ensure(yaml: String, force: Bool = false) async throws {
-        guard force || isRequired(yaml) else { return }
+    nonisolated static func requirements(for yaml: String) -> [Requirement] {
+        if let box = ClashPlanResourcesForIOS(yaml, nil),
+           let plan = try? JSONDecoder().decode(Plan.self, from: Data(box.value.utf8)) {
+            return plan.geodata.filter { $0.kind == "geoip" || $0.kind == "geosite" }
+        }
+        // A malformed or unsupported document should not silently omit a
+        // resource that the old rule-based detection would have prepared.
+        let upper = yaml.uppercased()
+        var fallback: [Requirement] = []
+        if upper.contains("GEOIP,") { fallback.append(.init(kind: "geoip", format: "dat", url: nil)) }
+        if upper.contains("GEOSITE,") || upper.contains("GEOSITE:") {
+            fallback.append(.init(kind: "geosite", format: "dat", url: nil))
+        }
+        return fallback
+    }
+
+    nonisolated static func ensure(yaml: String, force: Bool = false, allowAutomaticUpdate: Bool = false) async throws {
+        let requirements = requirements(for: yaml)
+        guard force || !requirements.isEmpty else { return }
         let directory = try workingDirectory()
         let endpoints = endpoints(from: yaml)
+        let defaults = UserDefaults.standard
+        let customIP = defaults.string(forKey: geoIPSourceKey) ?? ""
+        let customSite = defaults.string(forKey: geoSiteSourceKey) ?? ""
+        let interval = defaults.integer(forKey: updateIntervalKey)
 
-        for source in [
-            Resource(
+        let needsIPDat = force || requirements.contains { $0.kind == "geoip" && $0.format == "dat" }
+        let needsSite = force || requirements.contains { $0.kind == "geosite" }
+        if needsIPDat && !customIP.isEmpty && httpsURL(customIP) == nil { throw Failure.invalid(geoIPFileName) }
+        if needsSite && !customSite.isEmpty && httpsURL(customSite) == nil { throw Failure.invalid(geoSiteFileName) }
+        var sources: [Resource] = []
+        if needsIPDat {
+            sources.append(Resource(
                 name: geoIPFileName,
-                urls: endpoints.geoIP.isEmpty
-                    ? [mirrorGeoIP, defaultGeoIP] : endpoints.geoIP
-            ),
-            Resource(
+                urls: httpsURL(customIP).map { [$0] } ?? (endpoints.geoIP.isEmpty
+                    ? [mirrorGeoIP, defaultGeoIP] : endpoints.geoIP)
+            ))
+        }
+        if needsSite {
+            sources.append(Resource(
                 name: geoSiteFileName,
-                urls: endpoints.geoSite.isEmpty
-                    ? [mirrorGeoSite, defaultGeoSite] : endpoints.geoSite
-            )
-        ] {
+                urls: httpsURL(customSite).map { [$0] } ?? (endpoints.geoSite.isEmpty
+                    ? [mirrorGeoSite, defaultGeoSite] : endpoints.geoSite)
+            ))
+        }
+        if let database = requirements.first(where: { $0.kind == "geoip" && $0.format == "mmdb" }) {
+            let defaultURL = URL(string: "https://github.com/MetaCubeX/meta-rules-dat/releases/download/latest/geoip.metadb")!
+            sources.append(Resource(name: geoIPDatabaseFileName, urls: httpsURL(database.url).map { [$0] } ?? [defaultURL]))
+        }
+        for source in sources {
             let destination = directory.appending(path: source.name)
-            if !force && isUsable(destination) { continue }
-            let data = try await download(source)
-            try data.write(
-                to: destination,
-                options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication]
-            )
+            let existingUsable = isUsable(destination)
+            var due = false
+            if !force && existingUsable {
+                let modified = (try? FileManager.default.attributesOfItem(atPath: destination.path)[.modificationDate]) as? Date
+                due = allowAutomaticUpdate && interval > 0
+                    && (modified.map { Date().timeIntervalSince($0) >= Double(interval) * 86400 } ?? true)
+                if !due { continue }
+            }
+            try await install(destination: destination, canUseExistingOnFailure: !force && existingUsable && due) {
+                try await download(source)
+            }
+        }
+    }
+
+    /// Atomic replacement leaves an existing resource usable when a scheduled
+    /// refresh fails. Explicit updates and first downloads still report errors.
+    nonisolated static func install(
+        destination: URL, canUseExistingOnFailure: Bool, fetch: () async throws -> Data
+    ) async throws {
+        do {
+            let data = try await fetch()
+            try Task.checkCancellation()
+            try data.write(to: destination, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        } catch {
+            try Task.checkCancellation()
+            guard canUseExistingOnFailure, isUsable(destination) else { throw error }
         }
     }
 
@@ -87,7 +153,7 @@ enum ClashGeodata {
 
     nonisolated static func status() throws -> [Status] {
         let directory = try workingDirectory()
-        return [geoIPFileName, geoSiteFileName].map { name in
+        return [geoIPFileName, geoSiteFileName, geoIPDatabaseFileName].map { name in
             let attributes = try? FileManager.default.attributesOfItem(atPath: directory.appending(path: name).path)
             let size = (attributes?[.size] as? NSNumber)?.int64Value
             return Status(name: name, size: size, modified: attributes?[.modificationDate] as? Date)
@@ -124,11 +190,13 @@ enum ClashGeodata {
     nonisolated private static func download(_ source: Resource) async throws -> Data {
         var lastFailure: Failure = .download(source.name)
         for url in source.urls {
+            try Task.checkCancellation()
             do {
                 return try await fetch(url, name: source.name)
             } catch let failure as Failure {
                 lastFailure = failure
             } catch {
+                try Task.checkCancellation()
                 lastFailure = .download(source.name)
             }
         }
@@ -160,11 +228,12 @@ enum ClashGeodata {
         } catch let failure as Failure {
             throw failure
         } catch {
+            try Task.checkCancellation()
             throw Failure.download(name)
         }
     }
 
-    nonisolated private static func workingDirectory() throws -> URL {
+    nonisolated static func workingDirectory() throws -> URL {
         #if targetEnvironment(simulator)
         let root = URL.applicationSupportDirectory
         #else

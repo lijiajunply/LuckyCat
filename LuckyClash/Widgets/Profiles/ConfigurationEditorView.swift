@@ -11,15 +11,19 @@ struct ConfigurationEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("配置可能包含节点密码。保存时检查语法和基本结构；完整配置需连接时由内核验证。订阅更新会覆盖修改。")
+            Text("配置可能包含节点密码。保存时检查语法和基本结构；内核在应用时验证完整配置。订阅更新会覆盖修改。")
                 .font(.footnote).foregroundStyle(.secondary).padding(.horizontal)
+            if vpn.library.profiles.first(where: { $0.id == profileID })?.customRecipe != nil {
+                Text("直接保存 YAML 会移除可视化编辑信息；如需保留，请使用自定义配置编辑器。")
+                    .font(.footnote).foregroundStyle(.orange).padding(.horizontal)
+            }
             if let error {
                 Text(error).font(.footnote).foregroundStyle(.red).padding(.horizontal)
             }
             TextEditor(text: $text)
                 .font(.system(.body, design: .monospaced))
                 .textInputAutocapitalization(.never).autocorrectionDisabled()
-                .disabled(saving || vpn.isActive)
+                .disabled(saving)
         }
         .navigationTitle("编辑配置")
         .navigationBarTitleDisplayMode(.inline)
@@ -33,7 +37,7 @@ struct ConfigurationEditorView: View {
                     saving = false
                 }
             }
-            .disabled(text == original || text.isEmpty || saving || vpn.busy || vpn.isActive)
+            .disabled(text == original || text.isEmpty || saving || !vpn.canUpdateProfile(profileID))
         }
         .task {
             do {

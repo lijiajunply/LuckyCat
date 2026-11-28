@@ -119,6 +119,32 @@ struct RemoteImportTests {
         }
     }
 
+    @Test func customUserAgentDoesNotRetryWithAnotherIdentity() async throws {
+        let defaults = UserDefaults.standard
+        let oldMode = defaults.object(forKey: RemoteImport.userAgentModeKey)
+        let oldAgent = defaults.object(forKey: RemoteImport.customUserAgentKey)
+        defer {
+            defaults.set(oldMode, forKey: RemoteImport.userAgentModeKey)
+            defaults.set(oldAgent, forKey: RemoteImport.customUserAgentKey)
+        }
+        defaults.set("custom", forKey: RemoteImport.userAgentModeKey)
+        defaults.set("ExampleClient/1", forKey: RemoteImport.customUserAgentKey)
+        var agents: [String] = []
+        StubURLProtocol.handler = { request in
+            agents.append(request.value(forHTTPHeaderField: "User-Agent") ?? "")
+            return (
+                HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!,
+                Data()
+            )
+        }
+        await #expect(throws: RemoteImport.Failure.status(400)) {
+            try await RemoteImport.download(
+                URL(string: "https://example.com/config.yaml")!, configuration: streamingConfiguration()
+            )
+        }
+        #expect(agents == ["ExampleClient/1"])
+    }
+
     @Test func fetchRejectsNonHTTPSWithoutARequest() async {
         let url = URL(string: "http://example.com/config.yaml")!
         do {

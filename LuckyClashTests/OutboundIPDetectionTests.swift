@@ -163,6 +163,20 @@ struct OutboundIPDetectionTests {
         #expect(!detection.isChecking)
     }
 
+    @Test func routeChangeClearsOldReportAndRetriesTransientFailures() async {
+        let report = self.report
+        let failure = OutboundIPFailure(failures: [.init(source: "test", reason: "暂不可用")])
+        let stub = LookupStub([.success(report), .failure(failure), .success(report)])
+        let detection = OutboundIPDetection(lookup: OutboundIPLookup { try await stub.next() })
+        await detection.refresh().value
+        let retry = detection.refreshForRouteChange()
+        #expect(detection.report == nil)
+        #expect(detection.failure == nil)
+        await retry.value
+        #expect(detection.report?.ip == report.ip)
+        #expect(detection.failure == nil)
+    }
+
     @Test func failureWithoutReportIsExposed() async {
         let detection = OutboundIPDetection(lookup: OutboundIPLookup {
             throw OutboundIPFailure(failures: [
