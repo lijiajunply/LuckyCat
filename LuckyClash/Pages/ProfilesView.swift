@@ -33,7 +33,6 @@ struct ProfilesView: View {
                         if let groups = profile.clashGroups, !groups.isEmpty {
                             groupsSection(profile: profile, groups: groups)
                         }
-                        nodesSection(profile)
                         if profile.sourceURL != nil {
                             subscriptionSection(profile)
                         }

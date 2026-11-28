@@ -20,7 +20,7 @@ struct ProfileBackup: Codable {
     let preferences: [String: Data]
 
     static let preferenceKeys = [
-        "appLanguage", "hideOutboundIP", "strategyGroupTabs", "nodeGridLayout", "hideTimedOutNodes", "nodeSortOrder",
+        "hideOutboundIP", "strategyGroupTabs", "nodeGridLayout", "hideTimedOutNodes", "nodeSortOrder",
         "closeConnectionsOnNodeSwitch", "latencyTestURL", ClashDelayRequest.timeoutKey,
         ClashGeodata.geoIPSourceKey, ClashGeodata.geoSiteSourceKey, ClashGeodata.updateIntervalKey,
         RemoteImport.userAgentModeKey, RemoteImport.customUserAgentKey, RemoteImport.verifyCertificateKey,
@@ -29,6 +29,7 @@ struct ProfileBackup: Codable {
         TunnelNetworkOptions.statisticsProxyOnly, TunnelNetworkOptions.onDemand,
         TunnelNetworkOptions.excludedSSIDs, AppAppearance.modeKey, AppAppearance.accentKey
     ]
+    private static let legacyIgnoredPreferenceKeys: Set<String> = ["appLanguage"]
 
     static func capture(_ library: ProfileLibrary) throws -> ProfileBackup {
         let entries = try library.profiles.map { profile -> ProfileData in
@@ -58,11 +59,11 @@ struct ProfileBackup: Codable {
     }
 
     func decodedPreferences() throws -> [String: Any] {
-        guard preferences.keys.allSatisfy({ Self.preferenceKeys.contains($0) }) else {
+        guard preferences.keys.allSatisfy({ Self.preferenceKeys.contains($0) || Self.legacyIgnoredPreferenceKeys.contains($0) }) else {
             throw BackupEncryption.Failure.invalidBackup
         }
         var values: [String: Any] = [:]
-        for (key, data) in preferences {
+        for (key, data) in preferences where !Self.legacyIgnoredPreferenceKeys.contains(key) {
             guard data.count <= 16_384,
                   let container = try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any],
                   let value = container["value"] else {

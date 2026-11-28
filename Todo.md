@@ -72,10 +72,10 @@
 - [x] **iOS 18 控制中心开关（ControlWidget）**：新增 `ControlWidgetToggle`（对齐 FlClash Android 的 Quick Settings Tile），支持从控制中心一键连接/断开 VPN。
 - [x] **快捷指令（Shortcuts）集成**：提供连接、断开、切换分流模式、切换策略组节点的 AppIntents，支持 iOS 自动化场景（如连接指定 Wi-Fi / 打开特定 App 时自动切换模式）。
 
-### 10. 备份与恢复、自定义配置与多语言主题
+### 10. 备份与恢复、自定义配置与主题外观
 - [x] **备份与恢复**：支持将配置列表、覆写规则、策略组选择与偏好设置打包导出/导入（本地文件、WebDAV、iCloud Drive），支持加密备份保护节点凭据。
 - [x] **自定义配置构建器**：支持脱离单一订阅，自由聚合多个订阅/手动节点、可视化编排策略组与规则集（对齐 FlClash `views/profiles/custom/`）。
-- [x] **多语言与主题外观**：引入 String Catalog (`Localizable.xcstrings`) 替换硬编码中文，支持中英文切换与跟随系统/浅色/深色外观、自定义强调色。
+- [x] **主题外观**：支持跟随系统/浅色/深色外观与自定义强调色（多语言支持暂缓，当前仅支持简体中文）。
 
 ---
 

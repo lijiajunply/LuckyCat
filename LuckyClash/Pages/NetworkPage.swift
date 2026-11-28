@@ -131,7 +131,7 @@ struct NetworkPage: View {
                 Circle()
                     .fill(statusColor)
                     .frame(width: 8, height: 8)
-                Text(LocalizedStringKey(statusTitle))
+                Text(statusTitle)
                 Spacer()
                 if let updated = store.lastUpdated, store.status == .streaming {
                     Text(updated, format: .dateTime.hour().minute().second())
@@ -144,7 +144,7 @@ struct NetworkPage: View {
                 LabeledContent("实时速率", value: "↓ \(rate(store.downloadRate))/s · ↑ \(rate(store.uploadRate))/s")
             }
         } footer: {
-            Text(LocalizedStringKey(statusHint))
+            Text(statusHint)
         }
     }
 
@@ -183,7 +183,7 @@ struct NetworkPage: View {
         Section {
             Picker("视图", selection: $feed) {
                 ForEach(Feed.allCases) { item in
-                    Text(LocalizedStringKey(item.title)).tag(item)
+                    Text(item.title).tag(item)
                 }
             }
             .pickerStyle(.segmented)
@@ -508,7 +508,7 @@ struct NetworkPage: View {
                     }
                     Picker("级别", selection: $level) {
                         ForEach(LevelFilter.allCases) { item in
-                            Text(LocalizedStringKey(item.title)).tag(item)
+                            Text(item.title).tag(item)
                         }
                     }
                     ShareLink(item: exportText) {

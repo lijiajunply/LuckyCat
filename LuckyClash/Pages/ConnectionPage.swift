@@ -71,7 +71,7 @@ struct ConnectionPage: View {
                                 ProgressView(connectionProgress)
                                     .controlSize(.small)
                             } else {
-                                Label(LocalizedStringKey(VPNStatusText.status(vpn)), systemImage: "bolt.shield")
+                                Label(VPNStatusText.status(vpn), systemImage: "bolt.shield")
                             }
                         }
                         .disabled(connectToggleDisabled)
@@ -91,12 +91,8 @@ struct ConnectionPage: View {
                     currentNodeSection(profile)
                 }
 
-                if vpn.isActive {
-                    dashboardSection
-                }
-
-                serviceStatusSection
                 networkDetectionSection
+                serviceStatusSection
 
                 if let issue = vpn.issue, issue != .storage,
                    issue != .permission || vpn.library.selectedProfile == nil {
@@ -375,36 +371,6 @@ struct ConnectionPage: View {
         return parts.joined(separator: " · ")
     }
 
-    private var dashboardSection: some View {
-        Section("实时流量") {
-            HStack {
-                Label("下载 \(rateText(vpn.network.downloadRate))", systemImage: "arrow.down")
-                Spacer()
-                Label("上传 \(rateText(vpn.network.uploadRate))", systemImage: "arrow.up")
-            }
-            .font(.caption)
-            if !vpn.network.rateHistory.isEmpty {
-                Chart(vpn.network.rateHistory) { sample in
-                    LineMark(x: .value("时间", sample.date), y: .value("下载", sample.download))
-                        .foregroundStyle(.blue)
-                    LineMark(x: .value("时间", sample.date), y: .value("上传", sample.upload))
-                        .foregroundStyle(.orange)
-                }
-                .chartXAxis(.hidden)
-                .frame(height: 100)
-                .accessibilityLabel("最近一分钟的下载与上传速率")
-            }
-            LabeledContent("会话接收", value: VPNStatusText.bytes(vpn.network.downloadTotal))
-            LabeledContent("会话发送", value: VPNStatusText.bytes(vpn.network.uploadTotal))
-            HStack {
-                LabeledContent("内核内存", value: vpn.network.memoryFootprint.map { VPNStatusText.bytes($0) } ?? "暂不可用")
-                Button("释放") { vpn.freeTunnelMemory() }
-                    .buttonStyle(.borderless)
-                    .disabled(vpn.status != .connected)
-            }
-        }
-    }
-
     private func rateText(_ value: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: max(0, value), countStyle: .binary) + "/s"
     }
@@ -413,7 +379,7 @@ struct ConnectionPage: View {
         Section {
             Picker("分流模式", selection: modeBinding) {
                                 ForEach(TrafficMode.allCases, id: \.self) { mode in
-                                    Text(LocalizedStringKey(mode.title)).tag(mode)
+                                    Text(mode.title).tag(mode)
                                 }
                             }
                             .pickerStyle(.segmented)
@@ -449,6 +415,31 @@ struct ConnectionPage: View {
             .contextMenu { currentNodeLatencyAction(profile) }
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 currentNodeLatencyAction(profile)
+            }
+            if !vpn.network.rateHistory.isEmpty {
+                Chart(vpn.network.rateHistory) { sample in
+                    LineMark(x: .value("时间", sample.date), y: .value("下载", sample.download))
+                        .foregroundStyle(.blue)
+                    LineMark(x: .value("时间", sample.date), y: .value("上传", sample.upload))
+                        .foregroundStyle(.orange)
+                }
+                .chartXAxis(.hidden)
+                .frame(height: 100)
+                .accessibilityLabel("最近一分钟的下载与上传速率")
+            }
+            HStack {
+                Label("下载 \(rateText(vpn.network.downloadRate))", systemImage: "arrow.down")
+                Spacer()
+                Label("上传 \(rateText(vpn.network.uploadRate))", systemImage: "arrow.up")
+            }
+            .font(.caption)
+            LabeledContent("会话接收", value: VPNStatusText.bytes(vpn.network.downloadTotal))
+            LabeledContent("会话发送", value: VPNStatusText.bytes(vpn.network.uploadTotal))
+            HStack {
+                LabeledContent("内核内存", value: vpn.network.memoryFootprint.map { VPNStatusText.bytes($0) } ?? "暂不可用")
+                Button("释放") { vpn.freeTunnelMemory() }
+                    .buttonStyle(.borderless)
+                    .disabled(vpn.status != .connected)
             }
         } header: {
             Text("当前节点")
@@ -558,10 +549,10 @@ struct ConnectionPage: View {
             }
             Spacer(minLength: 8)
             VStack(alignment: .trailing, spacing: 3) {
-                (Text("质量") + Text(" ") + Text(LocalizedStringKey(report.quality.title)))
+                Text("质量 \(report.quality.title)")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(detectionColor(report.quality))
-                Text(LocalizedStringKey(report.kind.title))
+                Text(report.kind.title)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

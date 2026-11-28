@@ -38,19 +38,11 @@ enum AppAppearance {
 }
 
 struct AppearanceSettingsView: View {
-    @AppStorage("appLanguage") private var language = "system"
     @AppStorage(AppAppearance.modeKey) private var mode = "system"
     @AppStorage(AppAppearance.accentKey) private var accentHex = AppAppearance.defaultAccent
 
     var body: some View {
         Form {
-            Section("语言") {
-                Picker("应用语言", selection: $language) {
-                    Text("跟随系统").tag("system")
-                    Text("简体中文").tag("zh-Hans")
-                    Text("English").tag("en")
-                }
-            }
             Section("外观") {
                 Picker("外观模式", selection: $mode) {
                     Text("跟随系统").tag("system")

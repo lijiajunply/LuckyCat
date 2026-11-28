@@ -65,7 +65,7 @@ struct CustomProfileBuilderView: View {
                 }
             }
             if !sources.isEmpty {
-                Section(LocalizedStringKey(editingGroupID == nil ? "添加策略组" : "编辑策略组")) {
+                Section(editingGroupID == nil ? "添加策略组" : "编辑策略组") {
                     TextField("策略组名称", text: $groupName)
                         .disabled(editingGroupID != nil)
                     Picker("类型", selection: $groupType) {
@@ -81,7 +81,7 @@ struct CustomProfileBuilderView: View {
                     ForEach(inventory.proxyProviders.keys.sorted(), id: \.self) { provider in
                         Toggle("Provider · \(provider)", isOn: membership(provider, in: $selectedProviders))
                     }
-                    Button(LocalizedStringKey(editingGroupID == nil ? "添加策略组" : "保存策略组")) { addGroup() }
+                    Button(editingGroupID == nil ? "添加策略组" : "保存策略组") { addGroup() }
                     if editingGroupID != nil { Button("取消编辑") { resetGroupEditor() } }
                 }
                 if !groups.isEmpty {
@@ -103,7 +103,7 @@ struct CustomProfileBuilderView: View {
                         }
                         .onMove { groups.move(fromOffsets: $0, toOffset: $1) }
                     }
-                    Section(LocalizedStringKey(editingRuleIndex == nil ? "添加规则" : "编辑规则")) {
+                    Section(editingRuleIndex == nil ? "添加规则" : "编辑规则") {
                         Picker("类型", selection: $ruleType) {
                             ForEach(["DOMAIN", "DOMAIN-SUFFIX", "DOMAIN-KEYWORD", "IP-CIDR", "IP-CIDR6", "GEOIP", "GEOSITE", "RULE-SET", "MATCH"], id: \.self) {
                                 Text($0).tag($0)
@@ -113,7 +113,7 @@ struct CustomProfileBuilderView: View {
                         Picker("策略", selection: $ruleTarget) {
                             ForEach(["DIRECT", "REJECT"] + groups.map(\.name), id: \.self) { Text($0).tag($0) }
                         }
-                        Button(LocalizedStringKey(editingRuleIndex == nil ? "添加规则" : "保存规则")) { addRule() }
+                        Button(editingRuleIndex == nil ? "添加规则" : "保存规则") { addRule() }
                         if editingRuleIndex != nil { Button("取消编辑") { resetRuleEditor() } }
                     }
                     Section("规则顺序") {

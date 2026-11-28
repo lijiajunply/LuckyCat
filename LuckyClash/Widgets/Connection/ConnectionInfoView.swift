@@ -86,11 +86,11 @@ struct ConnectionInfoView: View {
 
     private var statusSection: some View {
         Section {
-            LabeledContent("VPN") { Text(LocalizedStringKey(VPNStatusText.status(vpn))) }
+            LabeledContent("VPN", value: VPNStatusText.status(vpn))
             if vpn.isActive {
-                LabeledContent("扩展") { Text(LocalizedStringKey(VPNStatusText.extensionStatus(vpn))) }
+                LabeledContent("扩展", value: VPNStatusText.extensionStatus(vpn))
             }
-            LabeledContent("分流模式") { Text(LocalizedStringKey(vpn.library.trafficMode.title)) }
+            LabeledContent("分流模式", value: vpn.library.trafficMode.title)
             if vpn.isActive, vpn.network.lastUpdated != nil {
                 LabeledContent("接收", value: VPNStatusText.bytes(vpn.network.downloadTotal))
                 LabeledContent("发送", value: VPNStatusText.bytes(vpn.network.uploadTotal))
