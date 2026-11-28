@@ -9,6 +9,7 @@ struct ConnectionPage: View {
     @AppStorage("hideOutboundIP") private var hideOutboundIP = false
     @State private var showingDisclosure = false
     @State private var showingOutboundIP = false
+    @State private var showingServiceStatus = false
     @State private var detection = OutboundIPDetection()
     @State private var services = ServiceAvailability()
 
@@ -92,7 +93,6 @@ struct ConnectionPage: View {
                 }
 
                 networkDetectionSection
-                serviceStatusSection
 
                 if let issue = vpn.issue, issue != .storage,
                    issue != .permission || vpn.library.selectedProfile == nil {
@@ -321,42 +321,6 @@ struct ConnectionPage: View {
         return vpn.isActive ? text + " 连接中切换会立即应用到当前连接。" : text
     }
 
-    private var serviceStatusSection: some View {
-        Section {
-            ForEach(ServiceTarget.allCases) { target in
-                HStack {
-                    Text(target.rawValue)
-                    Spacer()
-                    if let result = services.results[target] {
-                        Text(serviceDescription(result))
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    } else {
-                        Text(services.isChecking ? "检测中…" : "未检测")
-                            .foregroundStyle(.secondary)
-                            .font(.caption)
-                    }
-                }
-            }
-        } header: {
-            HStack {
-                Text("服务状态")
-                Spacer()
-                Button {
-                    services.refresh()
-                } label: {
-                    if services.isChecking { ProgressView().controlSize(.mini) }
-                    else { Image(systemName: "arrow.clockwise") }
-                }
-                .buttonStyle(.borderless)
-                .disabled(services.isChecking || vpn.routeChangesInFlight > 0)
-                .accessibilityLabel("检测服务状态")
-            }
-        } footer: {
-            Text("检测服务连通性与可识别的地区限制。结果取决于当前路由。")
-        }
-    }
-
     private func serviceDescription(_ result: ServiceAvailabilityResult) -> String {
         let status: String
         switch result.status {
@@ -369,6 +333,18 @@ struct ConnectionPage: View {
         if let region = result.region, !region.isEmpty { parts.append(region) }
         if let latency = result.latency { parts.append("\(latency) ms") }
         return parts.joined(separator: " · ")
+    }
+
+    private var serviceSummaryText: String {
+        let total = ServiceTarget.allCases.count
+        if services.isChecking {
+            return services.results.isEmpty ? "检测中…" : "检测中 \(services.results.count)/\(total)"
+        }
+        if services.results.isEmpty {
+            return "未检测"
+        }
+        let reachable = services.results.values.filter { $0.status == .reachable }.count
+        return "\(reachable)/\(total) 可连接"
     }
 
     private func rateText(_ value: Int64) -> String {
@@ -437,9 +413,11 @@ struct ConnectionPage: View {
             LabeledContent("会话发送", value: VPNStatusText.bytes(vpn.network.uploadTotal))
             HStack {
                 LabeledContent("内核内存", value: vpn.network.memoryFootprint.map { VPNStatusText.bytes($0) } ?? "暂不可用")
-                Button("释放") { vpn.freeTunnelMemory() }
+                Button("释放", systemImage: "trash") { vpn.freeTunnelMemory() }
+                    .labelStyle(.iconOnly)
                     .buttonStyle(.borderless)
                     .disabled(vpn.status != .connected)
+                    .padding(.leading, 4)
             }
         } header: {
             Text("当前节点")
@@ -467,6 +445,15 @@ struct ConnectionPage: View {
     }
 
     // MARK: - Network detection
+
+    private var isRefreshingNetworkDetection: Bool {
+        detection.isChecking || services.isChecking
+    }
+
+    private func refreshNetworkDetection() {
+        detection.refresh()
+        services.refresh()
+    }
 
     @ViewBuilder private var networkDetectionSection: some View {
         Section {
@@ -505,14 +492,46 @@ struct ConnectionPage: View {
                         .foregroundStyle(.secondary)
                 }
             }
+
+            DisclosureGroup(isExpanded: $showingServiceStatus) {
+                ForEach(ServiceTarget.allCases) { target in
+                    HStack {
+                        Text(target.rawValue)
+                        Spacer()
+                        if let result = services.results[target] {
+                            Text(serviceDescription(result))
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        } else {
+                            Text(services.isChecking ? "检测中…" : "未检测")
+                                .foregroundStyle(.secondary)
+                                .font(.caption)
+                        }
+                    }
+                }
+            } label: {
+                HStack {
+                    Text("服务状态")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    if services.isChecking {
+                        ProgressView()
+                            .controlSize(.mini)
+                    }
+                    Text(serviceSummaryText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .accessibilityIdentifier("service-status")
         } header: {
             HStack {
                 Text("网络检测")
                 Spacer()
                 Button {
-                    detection.refresh()
+                    refreshNetworkDetection()
                 } label: {
-                    if detection.isChecking {
+                    if isRefreshingNetworkDetection {
                         ProgressView()
                             .controlSize(.mini)
                     } else {
@@ -520,10 +539,12 @@ struct ConnectionPage: View {
                     }
                 }
                 .buttonStyle(.borderless)
-                .disabled(detection.isChecking || vpn.routeChangesInFlight > 0)
-                .accessibilityLabel("重新检测出口 IP")
+                .disabled(isRefreshingNetworkDetection || vpn.routeChangesInFlight > 0)
+                .accessibilityLabel("重新检测网络与服务状态")
                 .accessibilityIdentifier("refresh-network-detection")
             }
+        } footer: {
+            Text("检测当前出口 IP、服务连通性与可识别的地区限制，结果取决于当前路由。")
         }
     }
 
