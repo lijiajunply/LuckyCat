@@ -4,6 +4,29 @@ import Testing
 @testable import LuckyClash
 
 struct ClashRuleResourcesTests {
+    @Test func synchronizesAndRemovesGeoSnapshots() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let source = root.appendingPathComponent("source")
+        let working = root.appendingPathComponent("matcher")
+        try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: working, withIntermediateDirectories: true)
+        let original = source.appendingPathComponent("GeoSite.dat")
+        let destination = working.appendingPathComponent("GeoSite.dat")
+        try Data("first".utf8).write(to: original, options: .atomic)
+        let firstIdentity = try ClashRuleResources.syncGeodata(name: "GeoSite.dat", sourceDirectory: source, workingDirectory: working)
+        let first = try #require(firstIdentity)
+        #expect(try Data(contentsOf: destination) == Data("first".utf8))
+        try Data("second".utf8).write(to: original, options: .atomic)
+        let secondIdentity = try ClashRuleResources.syncGeodata(name: "GeoSite.dat", sourceDirectory: source, workingDirectory: working)
+        let second = try #require(secondIdentity)
+        #expect(first != second)
+        #expect(try Data(contentsOf: destination) == Data("second".utf8))
+        try FileManager.default.removeItem(at: original)
+        #expect(try ClashRuleResources.syncGeodata(name: "GeoSite.dat", sourceDirectory: source, workingDirectory: working) == nil)
+        #expect(!FileManager.default.fileExists(atPath: destination.path))
+    }
+
     @Test func stagesProviderSnapshotsWithoutReadingOutsideWorkingDirectory() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

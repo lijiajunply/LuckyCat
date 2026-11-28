@@ -28,8 +28,8 @@ final class LuckyClashUITests: XCTestCase {
         let name = "UI Fixture " + String(UUID().uuidString.prefix(8))
         app.launch()
 
-        XCTAssertTrue(app.segmentedControls["mode-picker"].waitForExistence(timeout: 5))
-        app.buttons["add-profile"].tap()
+        XCTAssertTrue(app.buttons["add-profile"].waitForExistence(timeout: 5))
+        openImportMenu(app)
         XCTAssertTrue(app.buttons["从文件导入"].exists)
         XCTAssertTrue(app.buttons["从 URL 导入"].exists)
         app.buttons["粘贴配置"].tap()
@@ -56,6 +56,10 @@ final class LuckyClashUITests: XCTestCase {
         app.tabBars.buttons["配置"].tap()
         XCTAssertTrue(app.buttons["delete-profile-\(name)"].exists)
         app.buttons["delete-profile-\(name)"].tap()
+        if !app.alerts["删除配置？"].waitForExistence(timeout: 3) {
+            app.buttons["delete-profile-\(name)"].tap()
+        }
+        XCTAssertTrue(app.alerts["删除配置？"].waitForExistence(timeout: 5))
         app.alerts.buttons["删除"].tap()
         XCTAssertTrue(app.buttons["delete-profile-\(name)"].waitForNonExistence(timeout: 5))
     }
@@ -66,7 +70,7 @@ final class LuckyClashUITests: XCTestCase {
         let name = "Swipe Fixture " + String(UUID().uuidString.prefix(8))
         app.launch()
 
-        app.buttons["add-profile"].tap()
+        openImportMenu(app)
         app.buttons["粘贴配置"].tap()
         let editor = app.textViews["配置内容"]
         XCTAssertTrue(editor.waitForExistence(timeout: 5))
@@ -86,15 +90,15 @@ final class LuckyClashUITests: XCTestCase {
         app.tabBars.buttons["连接"].tap()
         let row = app.buttons["profile-\(name)"]
         XCTAssertTrue(row.waitForExistence(timeout: 5))
-        row.swipeRight()
-        XCTAssertTrue(app.buttons["编辑"].waitForExistence(timeout: 3))
+        row.swipeLeft()
+        XCTAssertTrue(app.buttons["详情"].waitForExistence(timeout: 3))
         XCTAssertTrue(app.buttons["删除"].exists)
 
-        app.buttons["编辑"].tap()
+        app.buttons["详情"].tap()
         XCTAssertTrue(app.navigationBars["配置详情"].waitForExistence(timeout: 5))
         app.buttons["完成"].tap()
 
-        row.swipeRight()
+        row.swipeLeft()
         XCTAssertTrue(app.buttons["删除"].waitForExistence(timeout: 3))
         app.buttons["删除"].tap()
         app.alerts.buttons["删除"].tap()
@@ -106,7 +110,7 @@ final class LuckyClashUITests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        app.buttons["add-profile"].tap()
+        openImportMenu(app)
         app.buttons["从 URL 导入"].tap()
         XCTAssertTrue(app.textFields["url-field"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["url-download"].exists)
@@ -136,5 +140,14 @@ final class LuckyClashUITests: XCTestCase {
         measure(metrics: [XCTApplicationLaunchMetric()]) {
             XCUIApplication().launch()
         }
+    }
+
+    @MainActor
+    private func openImportMenu(_ app: XCUIApplication) {
+        let add = app.buttons["add-profile"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        if !app.buttons["粘贴配置"].waitForExistence(timeout: 3) { add.tap() }
+        XCTAssertTrue(app.buttons["粘贴配置"].waitForExistence(timeout: 5))
     }
 }

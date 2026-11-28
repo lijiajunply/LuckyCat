@@ -1,8 +1,22 @@
 import Foundation
+import CryptoKit
 
 /// A small, protected outbox for extension events. The app and extension
 /// never rewrite each other's diagnostic history.
 nonisolated enum TunnelDiagnosticEvents {
+    /// A bounded fingerprint and fixed categories avoid placing raw crash
+    /// text, which may contain configuration data, into exported diagnostics.
+    static func crashSummary(_ report: String) -> String {
+        let lower = report.lowercased()
+        let category: String
+        if lower.contains("out of memory") { category = "内存不足" }
+        else if lower.contains("concurrent map") { category = "并发映射" }
+        else if lower.contains("invalid memory address") || lower.contains("nil pointer dereference") { category = "无效内存访问" }
+        else if lower.contains("stack overflow") { category = "栈溢出" }
+        else { category = "其他" }
+        let digest = SHA256.hash(data: Data(report.utf8)).prefix(6).map { String(format: "%02x", $0) }.joined()
+        return "检测到上次隧道的 Go 崩溃：\(category)，标识 \(digest)，报告 \(report.utf8.count) 字节"
+    }
     struct Event: Codable {
         let id: UUID
         let timestamp: Date

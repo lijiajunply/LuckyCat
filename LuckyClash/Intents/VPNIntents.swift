@@ -30,6 +30,19 @@ private enum IntentVPN {
             throw IntentFailure.message(message)
         }
     }
+
+    @MainActor static func waitForConnection(_ vpn: PrototypeVPN) async throws {
+        let deadline = ContinuousClock.now + .seconds(35)
+        while ContinuousClock.now < deadline {
+            await vpn.updateStatus()
+            if vpn.status == .connected { return }
+            if !vpn.isActive {
+                throw IntentFailure.message(vpn.message ?? "VPN 未能连接，请查看应用中的连接状态。")
+            }
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        throw IntentFailure.message(vpn.message ?? "VPN 连接超时，请查看应用中的连接状态。")
+    }
 }
 
 struct ConnectVPNIntent: AppIntent {
@@ -42,12 +55,18 @@ struct ConnectVPNIntent: AppIntent {
             throw IntentFailure.message("请先在 LuckyClash 中查看并同意 VPN 数据使用说明。")
         }
         let vpn = try await IntentVPN.ready()
-        if vpn.isActive { return .result() }
+        if vpn.status == .connected { return .result() }
+        if vpn.isActive {
+            guard vpn.canStop else { throw IntentFailure.message("VPN 正在断开，请稍后重试。") }
+            try await IntentVPN.waitForConnection(vpn)
+            return .result()
+        }
         guard vpn.library.selectedProfile != nil else {
             throw IntentFailure.message("请先在 LuckyClash 中选择配置。")
         }
         await vpn.connect()
         guard vpn.isActive else { throw IntentFailure.message(vpn.message ?? "无法发起 VPN 连接。") }
+        try await IntentVPN.waitForConnection(vpn)
         return .result()
     }
 }

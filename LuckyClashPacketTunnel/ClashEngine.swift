@@ -286,17 +286,26 @@ final class ClashEngine: NSObject, @unchecked Sendable {
     }
 
     private func collectPreviousEvidence() {
-        if let evidence = ClashConsumeOOMEvidence(nil),
-           let fields = Self.evidenceFields(evidence.value) {
-            let heap = (fields["heapInuseBytes"] as? NSNumber)?.int64Value ?? 0
-            let stack = (fields["stackInuseBytes"] as? NSNumber)?.int64Value ?? 0
-            let reloadPhase = fields["reloadPhase"] as? String ?? ""
-            let reload = ["parse", "apply"].first { $0 == reloadPhase }
-            let phase = reload.map { "，重载阶段 \($0)" } ?? ""
-            TunnelDiagnosticEvents.append("上次隧道可能因内存压力退出，Go 堆 \(heap / 1024) KiB，栈 \(stack / 1024) KiB\(phase)")
+        var oomError: NSError?
+        if let evidence = ClashConsumeOOMEvidence(&oomError) {
+            if let fields = Self.evidenceFields(evidence.value) {
+                let heap = (fields["heapInuseBytes"] as? NSNumber)?.int64Value ?? 0
+                let stack = (fields["stackInuseBytes"] as? NSNumber)?.int64Value ?? 0
+                let reloadPhase = fields["reloadPhase"] as? String ?? ""
+                let reload = ["parse", "apply"].first { $0 == reloadPhase }
+                let phase = reload.map { "，重载阶段 \($0)" } ?? ""
+                TunnelDiagnosticEvents.append("上次隧道可能因内存压力退出，Go 堆 \(heap / 1024) KiB，栈 \(stack / 1024) KiB\(phase)")
+            } else {
+                TunnelDiagnosticEvents.append("检测到上次隧道的内存压力证据，但格式无法解析")
+            }
+        } else if oomError != nil {
+            TunnelDiagnosticEvents.append("无法读取上次隧道的内存压力证据")
         }
-        if let report = ClashConsumeGoCrashReport(nil), !report.value.isEmpty {
-            TunnelDiagnosticEvents.append("检测到上次隧道的 Go 崩溃报告（\(report.value.utf8.count) 字节）")
+        var crashError: NSError?
+        if let report = ClashConsumeGoCrashReport(&crashError), !report.value.isEmpty {
+            TunnelDiagnosticEvents.append(TunnelDiagnosticEvents.crashSummary(report.value))
+        } else if crashError != nil {
+            TunnelDiagnosticEvents.append("无法读取上次隧道的 Go 崩溃报告")
         }
         recordStartupExplanation(previous: true)
     }

@@ -59,6 +59,14 @@ enum ClashGeodata {
     nonisolated private static let maximumBytes = 64 * 1024 * 1024
     nonisolated private static let requestTimeout: TimeInterval = 30
     nonisolated private static let resourceTimeout: TimeInterval = 120
+    private struct FileStamp: Equatable {
+        let size: UInt64
+        let modified: Date
+        let inode: UInt64
+        let device: UInt64
+    }
+    nonisolated private static let validationLock = NSLock()
+    nonisolated(unsafe) private static var validatedFiles: [String: FileStamp] = [:]
 
     nonisolated static func isRequired(_ yaml: String) -> Bool {
         !requirements(for: yaml).isEmpty
@@ -180,9 +188,30 @@ enum ClashGeodata {
     }
 
     nonisolated private static func isUsable(_ url: URL) -> Bool {
+        guard let stamp = fileStamp(url), stamp.size >= UInt64(minimumBytes), stamp.size <= UInt64(maximumBytes),
+              let (kind, format) = resourceFormat(url.lastPathComponent) else { return false }
+        if validationLock.withLock({ validatedFiles[url.path] == stamp }) { return true }
+        guard ClashValidateGeodataForIOS(kind, format, url.path, nil), fileStamp(url) == stamp else { return false }
+        validationLock.withLock { validatedFiles[url.path] = stamp }
+        return true
+    }
+
+    nonisolated private static func fileStamp(_ url: URL) -> FileStamp? {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-              let size = attributes[.size] as? NSNumber else { return false }
-        return size.intValue >= minimumBytes
+              let size = attributes[.size] as? NSNumber,
+              let modified = attributes[.modificationDate] as? Date,
+              let inode = attributes[.systemFileNumber] as? NSNumber,
+              let device = attributes[.systemNumber] as? NSNumber else { return nil }
+        return FileStamp(size: size.uint64Value, modified: modified, inode: inode.uint64Value, device: device.uint64Value)
+    }
+
+    nonisolated private static func resourceFormat(_ name: String) -> (String, String)? {
+        switch name {
+        case geoIPFileName: ("geoip", "dat")
+        case geoSiteFileName: ("geosite", "dat")
+        case geoIPDatabaseFileName: ("geoip", "mmdb")
+        default: nil
+        }
     }
 
     /// Tries every mirror in order and reports the last failure only once all
@@ -192,7 +221,9 @@ enum ClashGeodata {
         for url in source.urls {
             try Task.checkCancellation()
             do {
-                return try await fetch(url, name: source.name)
+                let data = try await fetch(url, name: source.name)
+                try validate(data, name: source.name)
+                return data
             } catch let failure as Failure {
                 lastFailure = failure
             } catch {
@@ -203,6 +234,18 @@ enum ClashGeodata {
         throw lastFailure
     }
 
+    /// Validate the staged payload before it can replace a known-good file.
+    nonisolated static func validate(_ data: Data, name: String) throws {
+        guard let (kind, format) = resourceFormat(name) else { throw Failure.invalid(name) }
+        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("geo-validation-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: temporary) }
+        try data.write(to: temporary, options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        var error: NSError?
+        guard ClashValidateGeodataForIOS(kind, format, temporary.path, &error) else {
+            throw Failure.invalid(name)
+        }
+    }
+
     nonisolated private static func fetch(_ url: URL, name: String) async throws -> Data {
         guard url.scheme?.lowercased() == "https" else { throw Failure.invalid(name) }
         let configuration = URLSessionConfiguration.ephemeral
@@ -210,20 +253,29 @@ enum ClashGeodata {
         configuration.timeoutIntervalForResource = resourceTimeout
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
+        defer { session.invalidateAndCancel() }
         do {
             var request = URLRequest(url: url)
             request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await session.data(for: request)
+            let (bytes, response) = try await session.bytes(for: request)
             guard let http = response as? HTTPURLResponse,
                   (200...299).contains(http.statusCode),
                   http.url?.scheme?.lowercased() == "https",
-                  data.count >= minimumBytes, data.count <= maximumBytes else {
+                  response.expectedContentLength <= Int64(maximumBytes) else {
                 throw Failure.invalid(name)
             }
             if http.mimeType?.lowercased().contains("html") == true {
                 throw Failure.invalid(name)
             }
+            var data = Data()
+            if response.expectedContentLength > 0 {
+                data.reserveCapacity(min(Int(response.expectedContentLength), 1024 * 1024))
+            }
+            for try await byte in bytes {
+                guard data.count < maximumBytes else { throw Failure.invalid(name) }
+                data.append(byte)
+            }
+            guard data.count >= minimumBytes else { throw Failure.invalid(name) }
             return data
         } catch let failure as Failure {
             throw failure

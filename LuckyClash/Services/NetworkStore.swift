@@ -32,11 +32,31 @@ final class NetworkStore {
     struct ClosedRequest: Identifiable {
         let connection: ClashConnection
         let closedAt: Date
+        var inferredAfterReconnect = false
         var id: String { connection.id }
         var averageRate: Double {
             let duration = closedAt.timeIntervalSince(connection.start ?? closedAt)
             guard duration > 0 else { return 0 }
             return (Double(connection.upload) + Double(connection.download)) / duration
+        }
+
+        static func resolve(_ event: ClashConnectionEvent, previous: ClashConnection?,
+                            current: ClashConnection?) -> ClosedRequest? {
+            guard var connection = event.connection ?? previous ?? current else { return nil }
+            // Close events may contain only final counters, while metadata
+            // arrived in an earlier event or connection snapshot.
+            connection.upload = max(connection.upload, previous?.upload ?? 0, current?.upload ?? 0, event.upload ?? 0)
+            connection.download = max(connection.download, previous?.download ?? 0, current?.download ?? 0, event.download ?? 0)
+            return ClosedRequest(connection: connection, closedAt: event.closedAt ?? .now)
+        }
+
+        static func missingAfterReset(_ batch: ClashConnectionEventBatch,
+                                      previous: [String: ClashConnection], at date: Date) -> [ClosedRequest] {
+            guard batch.reset else { return [] }
+            let activeIDs = Set(batch.events.filter { $0.type == "new" }.map(\.id))
+            return previous.filter { !activeIDs.contains($0.key) }.values.map {
+                ClosedRequest(connection: $0, closedAt: date, inferredAfterReconnect: true)
+            }
         }
     }
 
@@ -194,7 +214,17 @@ final class NetworkStore {
 
     private func apply(_ batch: ClashConnectionEventBatch) {
         guard isRunning else { return }
-        if batch.reset { eventConnections.removeAll() }
+        if batch.reset {
+            // A reset contains all connections still open. Any previously
+            // observed connection missing from it ended while the stream was
+            // disconnected; the exact close time is unknown.
+            for request in ClosedRequest.missingAfterReset(batch, previous: eventConnections, at: .now) {
+                requests.removeAll { $0.id == request.id }
+                requests.append(request)
+            }
+            if requests.count > 2000 { requests.removeFirst(requests.count - 2000) }
+            eventConnections.removeAll()
+        }
         for event in batch.events {
             switch event.type {
             case "new":
@@ -206,9 +236,10 @@ final class NetworkStore {
                 eventConnections[event.id] = connection
             case "closed":
                 let previous = eventConnections.removeValue(forKey: event.id)
-                guard let connection = event.connection ?? previous else { continue }
+                guard let request = ClosedRequest.resolve(event, previous: previous,
+                    current: connections.first(where: { $0.id == event.id })) else { continue }
                 requests.removeAll { $0.id == event.id }
-                requests.append(ClosedRequest(connection: connection, closedAt: event.closedAt ?? .now))
+                requests.append(request)
                 if requests.count > 2000 { requests.removeFirst(requests.count - 2000) }
             default:
                 break

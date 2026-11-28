@@ -50,14 +50,16 @@ nonisolated enum ServiceAvailabilityProbe {
             request.setValue("LuckyClash/1.0", forHTTPHeaderField: "User-Agent")
             let (bytes, response) = try await session.bytes(for: request)
             guard let http = response as? HTTPURLResponse else { throw URLError(.badServerResponse) }
+            // Measure until response headers arrive. Reading a large page to
+            // inspect regional markers should not inflate the latency shown.
+            let elapsed = start.duration(to: .now)
+            let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
             var data = Data()
             for try await byte in bytes {
                 data.append(byte)
                 if data.count >= 128 * 1024 { break }
             }
             try Task.checkCancellation()
-            let elapsed = start.duration(to: .now)
-            let milliseconds = Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
             return interpret(target, status: http.statusCode, body: String(decoding: data, as: UTF8.self), latency: milliseconds)
         } catch {
             return ServiceAvailabilityResult(target: target, status: .unavailable, latency: nil, region: nil)

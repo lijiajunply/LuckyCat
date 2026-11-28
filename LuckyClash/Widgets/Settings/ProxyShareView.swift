@@ -29,9 +29,17 @@ struct ProxyShareView: View {
                     TextField("用户名", text: $username)
                         .textInputAutocapitalization(.never).autocorrectionDisabled()
                     SecureField("密码", text: $password)
+                    if !username.isEmpty && !ProxyShareCredentials.validUsername(username) {
+                        Text("用户名不能包含冒号、控制字符或首尾空白，长度最多 255 字节。")
+                            .font(.footnote).foregroundStyle(.red)
+                    }
+                    if !password.isEmpty && !ProxyShareCredentials.validPassword(password) {
+                        Text("密码不能包含控制字符，长度最多 255 字节。")
+                            .font(.footnote).foregroundStyle(.red)
+                    }
                     Button("启动共享") { Task { await start() } }
                         .disabled(busy || vpn.status != .connected || !(1024...65535).contains(port)
-                                  || username.isEmpty || password.isEmpty)
+                                  || !ProxyShareCredentials.validUsername(username) || !ProxyShareCredentials.validPassword(password))
                 }
             } footer: {
                 Text("共享提供 HTTP 和 SOCKS 代理，当前内核要求用户名和密码。")

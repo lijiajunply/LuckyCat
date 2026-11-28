@@ -58,6 +58,7 @@ private final class NetworkQualityDiagnostics {
     func qualityUpdate(id: UUID, text: String, finished: Bool) {
         guard id == qualityID else { return }
         if finished {
+            qualityID = UUID()
             qualityResult = text
             qualityRunning = false
             qualityTest = nil
@@ -69,6 +70,7 @@ private final class NetworkQualityDiagnostics {
     func stunUpdate(id: UUID, text: String, finished: Bool) {
         guard id == stunID else { return }
         if finished {
+            stunID = UUID()
             stunResult = text
             stunRunning = false
             stunTest = nil
@@ -176,6 +178,7 @@ struct NetworkQualityView: View {
                     Button("开始 NAT 检测") {
                         diagnostics.startSTUN(server: stunServer.trimmingCharacters(in: .whitespacesAndNewlines))
                     }
+                    .disabled(stunServer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 if let result = diagnostics.stunResult { Text(result).textSelection(.enabled) }
             }

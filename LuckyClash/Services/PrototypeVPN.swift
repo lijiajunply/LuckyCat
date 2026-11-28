@@ -417,6 +417,7 @@ final class PrototypeVPN {
             }
         }
         for entry in backup.profiles {
+            try Task.checkCancellation()
             let original = entry.profile
             guard !original.nodes.isEmpty, original.nodes.contains(where: { $0.id == original.selectedNodeID }),
                   Set(original.nodes.map(\.id)).count == original.nodes.count else {
@@ -476,19 +477,34 @@ final class PrototypeVPN {
             recipe.remapSourceRevisions(original: originalRevisions, restored: restoredRevisions)
             restored.profiles[index].customRecipe = recipe
         }
+        try Task.checkCancellation()
         #if !targetEnvironment(simulator)
         // A system on-demand rule must not restart the old configuration during restore.
+        var suspendedManager: NETunnelProviderManager?
         if let current = try await loadManager() {
+            try Task.checkCancellation()
             guard [.invalid, .disconnected].contains(current.connection.status) else {
                 throw PrototypeError.activeConfiguration
             }
             if current.isOnDemandEnabled {
                 current.isOnDemandEnabled = false
                 try await current.saveToPreferences()
+                suspendedManager = current
             }
         }
         #endif
-        try restored.save()
+        do {
+            try restored.save()
+        } catch {
+            #if !targetEnvironment(simulator)
+            if let suspendedManager {
+                suspendedManager.isOnDemandEnabled = true
+                do { try await suspendedManager.saveToPreferences() }
+                catch { record("备份恢复失败，无法恢复系统按需连接设置") }
+            }
+            #endif
+            throw error
+        }
         library = restored
         latencyResults.removeAll()
         latencyResultsByURL.removeAll()
@@ -1596,10 +1612,9 @@ final class PrototypeVPN {
 
     func disconnect() {
         guard !busy, !switchingProfile, canStop else { return }
-        guard UserDefaults.standard.bool(forKey: TunnelNetworkOptions.onDemand) else {
-            stopConnection()
-            return
-        }
+        #if targetEnvironment(simulator)
+        stopConnection()
+        #else
         busy = true
         Task {
             defer { busy = false }
@@ -1608,6 +1623,7 @@ final class PrototypeVPN {
                 stopConnection()
             } catch { present(error, inConnection: true) }
         }
+        #endif
     }
 
     private func suspendOnDemand() async throws {
@@ -1622,10 +1638,16 @@ final class PrototypeVPN {
         busy = true
         defer { busy = false }
         let enabled = UserDefaults.standard.bool(forKey: TunnelNetworkOptions.onDemand)
+        if enabled && TunnelNetworkOptions.hasInvalidTrustedSSIDs(UserDefaults.standard.string(forKey: TunnelNetworkOptions.excludedSSIDs) ?? "") {
+            throw ClashLiveFailure.rejected("信任的 Wi-Fi 名称不能超过 32 字节。")
+        }
         if let stored = try await loadManager() {
             configureOnDemand(stored, enabled: enabled)
             try await stored.saveToPreferences()
-        } else if enabled, let profile = library.selectedProfile, let node = profile.selectedNode {
+        } else if enabled {
+            guard let profile = library.selectedProfile, let node = profile.selectedNode else {
+                throw PrototypeError.missingConfiguration
+            }
             // Stage prerequisites before the OS can automatically start the configuration.
             let yaml = try effectiveConfiguration(for: profile)
             if ClashGeodata.isRequired(yaml) { try await ClashGeodata.ensure(yaml: yaml) }
@@ -1633,8 +1655,6 @@ final class PrototypeVPN {
                 profile: profile, node: node, to: NETunnelProviderManager(), applyNetworkOptions: true
             )
             adopt(stored)
-        } else if enabled {
-            throw PrototypeError.missingConfiguration
         }
         #endif
     }
@@ -1964,6 +1984,10 @@ final class PrototypeVPN {
         configuration.merge(profileSettings) { _, new in new }
         if applyNetworkOptions {
             let defaults = UserDefaults.standard
+            if defaults.bool(forKey: TunnelNetworkOptions.onDemand),
+               TunnelNetworkOptions.hasInvalidTrustedSSIDs(defaults.string(forKey: TunnelNetworkOptions.excludedSSIDs) ?? "") {
+                throw ClashLiveFailure.rejected("信任的 Wi-Fi 名称不能超过 32 字节。")
+            }
             configuration[TunnelNetworkOptions.ipv6Mode] = defaults.string(forKey: TunnelNetworkOptions.ipv6Mode) ?? "config"
             configuration[TunnelNetworkOptions.queryMode] = defaults.string(forKey: TunnelNetworkOptions.queryMode) ?? "config"
             configuration[TunnelNetworkOptions.mtu] = defaults.integer(forKey: TunnelNetworkOptions.mtu)

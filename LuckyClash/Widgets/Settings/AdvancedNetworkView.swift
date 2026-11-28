@@ -51,6 +51,10 @@ struct AdvancedNetworkView: View {
                 Toggle("按需连接", isOn: $onDemand)
                 TextField("信任的 Wi-Fi 名称，每行一个", text: $excludedSSIDs, axis: .vertical)
                     .textInputAutocapitalization(.never).autocorrectionDisabled()
+                if onDemand && TunnelNetworkOptions.hasInvalidTrustedSSIDs(excludedSSIDs) {
+                    Text("每个 Wi-Fi 名称最多 32 字节。")
+                        .font(.footnote).foregroundStyle(.red)
+                }
                 Button("应用按需连接设置") {
                     applying = true
                     Task {
@@ -61,7 +65,7 @@ struct AdvancedNetworkView: View {
                         } catch { message = error.localizedDescription }
                     }
                 }
-                .disabled(applying || vpn.busy || vpn.switchingProfile)
+                .disabled(applying || vpn.busy || vpn.switchingProfile || (onDemand && TunnelNetworkOptions.hasInvalidTrustedSSIDs(excludedSSIDs)))
             } footer: {
                 Text("连接信任的 Wi-Fi 时断开 VPN，其他网络自动连接。")
             }

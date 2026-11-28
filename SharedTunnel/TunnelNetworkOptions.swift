@@ -10,6 +10,10 @@ nonisolated enum TunnelNetworkOptions {
     static let onDemand = "onDemandEnabled"
     static let excludedSSIDs = "onDemandExcludedSSIDs"
 
+    static func hasInvalidTrustedSSIDs(_ value: String) -> Bool {
+        value.split(whereSeparator: \.isNewline).contains { $0.utf8.count > 32 }
+    }
+
     static var trustedSSIDs: [String] {
         let value = UserDefaults.standard.string(forKey: excludedSSIDs) ?? ""
         var seen: Set<String> = []

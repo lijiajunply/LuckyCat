@@ -346,6 +346,10 @@ struct NetworkPage: View {
                         }
                         Text("\(connectionSubtitle(request.connection)) · ↓ \(bytes(request.connection.download)) · ↑ \(bytes(request.connection.upload))")
                             .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        if request.inferredAfterReconnect {
+                            Text("重连时发现结束，时间和流量可能不完整")
+                                .font(.caption2).foregroundStyle(.secondary)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
@@ -361,6 +365,7 @@ struct NetworkPage: View {
                 connection.destinationWithPort,
                 connection.ruleSummary,
                 connection.chains.joined(separator: " → "),
+                request.inferredAfterReconnect ? "重连时发现结束（时间和流量可能不完整）" : "",
                 "↓ \(bytes(connection.download)) ↑ \(bytes(connection.upload))"
             ].joined(separator: "  ")
         }.joined(separator: "\n")
